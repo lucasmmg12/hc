@@ -140,14 +140,14 @@ export function AuditarPDF() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">Auditar Historia Clínica</h1>
-        <p className="text-lg text-gray-600">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4 drop-shadow-sm">Auditar Historia Clínica</h1>
+        <p className="text-lg text-gray-700 font-medium">
           Suba la historia clínica en PDF para generar el informe automático
         </p>
       </div>
 
       {!resultado && (
-        <div className="bg-white rounded-xl shadow-lg p-8 border-2 border-dashed border-gray-300 hover:border-blue-500 transition-colors">
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-2 border-dashed border-gray-300 hover:border-green-500 transition-colors">
           <div className="text-center">
             <div className="mb-6 flex justify-center">
               {isProcessing ? (
@@ -177,7 +177,7 @@ export function AuditarPDF() {
 
                 <label
                   htmlFor="pdf-upload"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-all shadow-lg hover:shadow-xl cursor-pointer"
                 >
                   <FileCheck className="w-5 h-5" />
                   Seleccionar PDF
@@ -210,7 +210,7 @@ export function AuditarPDF() {
                 setAuditoriaId(null);
                 setError(null);
               }}
-              className="px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors"
+              className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-all shadow-lg hover:shadow-xl"
             >
               Auditar otro archivo
             </button>
