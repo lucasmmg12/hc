@@ -116,21 +116,53 @@ function extractIngresoAlta(text: string): { ingreso: Date | null; alta: Date | 
 function extraerDatosPaciente(texto: string): DatosPaciente {
   const datos: DatosPaciente = { errores_admision: [] };
   const lineas = texto.split('\n');
-  const textoInicial = lineas.slice(0, 50).join('\n');
 
-  const patronesNombre = [
-    /nombre[:\s]*([A-Z][A-Z\s,]+)/i,
-    /paciente[:\s]*([A-Z][A-Z\s,]+)/i,
-    /apellido[:\s]*([A-Z][A-Z\s,]+)/i,
-  ];
+  console.log('[DEBUG] === Búsqueda de nombre del paciente ===');
 
-  for (const patron of patronesNombre) {
-    const match = textoInicial.match(patron);
-    if (match && match[1].trim().length > 3) {
-      datos.nombre = match[1].trim();
-      break;
+  for (let i = 0; i < Math.min(lineas.length, 50); i++) {
+    const linea = lineas[i].trim();
+
+    if (/datos\s+paciente/i.test(linea)) {
+      console.log(`[DEBUG] Encontrado "Datos Paciente" en línea ${i}: "${linea}"`);
+
+      for (let j = i + 1; j < Math.min(i + 5, lineas.length); j++) {
+        const siguienteLinea = lineas[j].trim();
+
+        if (siguienteLinea.length > 5 && /^[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,]+$/i.test(siguienteLinea)) {
+          const posibleNombre = siguienteLinea.replace(/\s{2,}/g, ' ').trim();
+
+          if (posibleNombre.length > 10 && posibleNombre.includes(',')) {
+            datos.nombre = posibleNombre;
+            console.log(`[DEBUG] ✅ Nombre extraído: "${posibleNombre}"`);
+            break;
+          }
+        }
+      }
+
+      if (datos.nombre) break;
     }
   }
+
+  if (!datos.nombre) {
+    console.log('[DEBUG] No se encontró con método "Datos Paciente", usando patrones alternativos');
+    const textoInicial = lineas.slice(0, 50).join('\n');
+
+    const patronesNombre = [
+      /nombre[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,]{10,})/i,
+      /paciente[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,]{10,})/i,
+      /apellido[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,]{10,})/i
+    ];
+
+    for (const patron of patronesNombre) {
+      const match = textoInicial.match(patron);
+      if (match && match[1].trim().length > 10) {
+        datos.nombre = match[1].trim().replace(/\s{2,}/g, ' ');
+        console.log(`[DEBUG] ✅ Nombre encontrado con patrón alternativo: "${datos.nombre}"`);
+        break;
+      }
+    }
+  }
+
   if (!datos.nombre) datos.errores_admision.push('Nombre del paciente no encontrado');
 
   const patronesDni = [
