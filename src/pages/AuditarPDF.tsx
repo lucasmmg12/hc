@@ -102,12 +102,19 @@ export function AuditarPDF() {
       formData.append('nombreArchivo', file.name);
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error('Configuración de Supabase no disponible. Variables de entorno faltantes.');
+      }
+
       console.log('Enviando a Edge Function:', `${supabaseUrl}/functions/v1/auditar-pdf`);
+      console.log('Supabase URL:', supabaseUrl);
 
       const response = await fetch(`${supabaseUrl}/functions/v1/auditar-pdf`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Authorization': `Bearer ${supabaseKey}`,
         },
         body: formData,
       });
