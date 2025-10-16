@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Upload, FileCheck, Loader2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { InformeAuditoria } from '../components/InformeAuditoria';
@@ -102,19 +102,12 @@ export function AuditarPDF() {
       formData.append('nombreArchivo', file.name);
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      if (!supabaseUrl || !supabaseKey) {
-        throw new Error('Configuración de Supabase no disponible. Variables de entorno faltantes.');
-      }
-
       console.log('Enviando a Edge Function:', `${supabaseUrl}/functions/v1/auditar-pdf`);
-      console.log('Supabase URL:', supabaseUrl);
 
       const response = await fetch(`${supabaseUrl}/functions/v1/auditar-pdf`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
         body: formData,
       });
