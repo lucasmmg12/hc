@@ -578,20 +578,24 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
 
   for (let i = 0; i < lineasFoja.length; i++) {
     const linea = lineasFoja[i].trim();
-    if (linea && /bisturí|armónico/i.test(linea)) {
+    if (linea && /uso\s+de\s+bisturí\s+armónico|bisturí\s+armónico/i.test(linea)) {
       console.log(`\nLínea ${i+1}: "${linea}"`);
-      console.log(`  🎯 ¡ENCONTRADO! Esta línea contiene bisturí/armónico`);
+      console.log(`  🎯 ¡ENCONTRADO! Esta línea contiene la pregunta sobre bisturí armónico`);
 
-      if (/\bsi\b/i.test(linea)) {
-        console.log(`  ✅ Contiene 'SI'`);
-        resultados.bisturi_armonico = 'SI';
-        break;
-      } else if (/\bno\b/i.test(linea)) {
-        console.log(`  ❌ Contiene 'NO'`);
-        resultados.bisturi_armonico = 'NO';
-        break;
-      } else {
-        console.log(`  ❓ No contiene SI/NO claramente`);
+      const partes = linea.split(/uso\s+de\s+bisturí\s+armónico\??|bisturí\s+armónico\??/i);
+      if (partes.length > 1) {
+        const respuesta = partes[partes.length - 1].trim();
+        console.log(`  📝 Respuesta extraída: "${respuesta}"`);
+
+        if (/^si\b/i.test(respuesta)) {
+          console.log(`  ✅ La respuesta es 'SI'`);
+          resultados.bisturi_armonico = 'SI';
+          break;
+        } else if (/^no\b/i.test(respuesta)) {
+          console.log(`  ❌ La respuesta es 'NO'`);
+          resultados.bisturi_armonico = 'NO';
+          break;
+        }
       }
     }
   }
