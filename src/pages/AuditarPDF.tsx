@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Upload, FileCheck, Loader2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { InformeAuditoria } from '../components/InformeAuditoria';
+import { getSupabaseConfig } from '../lib/supabase';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 

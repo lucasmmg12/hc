@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { getSupabaseConfig } from '../lib/supabase';
 
 interface DatosPaciente {
   nombre?: string;
@@ -71,16 +72,10 @@ export async function enviarMensajeWhatsApp(
     console.log(`[${timestamp}] FRONTEND: INICIANDO ENVIO WHATSAPP`);
     console.log(`${'='.repeat(80)}`);
 
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabaseConfig();
 
     console.log('[FRONTEND-CONFIG] Supabase URL:', supabaseUrl);
     console.log('[FRONTEND-CONFIG] Tiene Supabase Key:', !!supabaseAnonKey);
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('[FRONTEND-ERROR] ❌ Faltan credenciales de Supabase');
-      throw new Error('Configuración de Supabase no encontrada');
-    }
 
     console.log('\n[FRONTEND-DATOS] Datos a enviar:');
     console.log('[FRONTEND-DATOS] Auditoria ID:', params.auditoriaId);
@@ -196,8 +191,7 @@ export async function verificarMensajeEnviado(
   comunicacionIndex: number
 ): Promise<boolean> {
   try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const { url: supabaseUrl, anonKey: supabaseAnonKey } = getSupabaseConfig();
 
     const response = await fetch(
       `${supabaseUrl}/rest/v1/mensajes_enviados?auditoria_id=eq.${auditoriaId}&comunicacion_index=eq.${comunicacionIndex}&estado=eq.enviado&select=id`,
