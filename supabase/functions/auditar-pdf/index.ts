@@ -118,19 +118,51 @@ function extraerDatosPaciente(texto: string): DatosPaciente {
   const lineas = texto.split('\n');
   const textoInicial = lineas.slice(0, 50).join('\n');
 
-  const patronesNombre = [
-    /nombre[:\s]*([A-Z][A-Z\s,]+)/i,
-    /paciente[:\s]*([A-Z][A-Z\s,]+)/i,
-    /apellido[:\s]*([A-Z][A-Z\s,]+)/i,
-  ];
+  console.log('[DEBUG] === Búsqueda de nombre del paciente ===');
 
-  for (const patron of patronesNombre) {
-    const match = textoInicial.match(patron);
-    if (match && match[1].trim().length > 3) {
-      datos.nombre = match[1].trim();
-      break;
+  for (let i = 0; i < Math.min(lineas.length, 50); i++) {
+    const linea = lineas[i].trim();
+
+    if (/datos\s+paciente/i.test(linea)) {
+      console.log(`[DEBUG] Encontrado "Datos Paciente" en línea ${i}: "${linea}"`);
+
+      for (let j = i + 1; j < Math.min(i + 5, lineas.length); j++) {
+        const siguienteLinea = lineas[j].trim();
+
+        if (siguienteLinea.length > 5 && /^[A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,]+$/i.test(siguienteLinea)) {
+          const posibleNombre = siguienteLinea.replace(/\s{2,}/g, ' ').trim();
+
+          if (posibleNombre.length > 10 && posibleNombre.includes(',')) {
+            datos.nombre = posibleNombre;
+            console.log(`[DEBUG] ✅ Nombre extraído: "${posibleNombre}"`);
+            break;
+          }
+        }
+      }
+
+      if (datos.nombre) break;
     }
   }
+
+  if (!datos.nombre) {
+    console.log('[DEBUG] No se encontró con método "Datos Paciente", usando patrones alternativos');
+
+    const patronesNombre = [
+      /nombre[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,]{10,})/i,
+      /paciente[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,]{10,})/i,
+      /apellido[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,]{10,})/i
+    ];
+
+    for (const patron of patronesNombre) {
+      const match = textoInicial.match(patron);
+      if (match && match[1].trim().length > 10) {
+        datos.nombre = match[1].trim().replace(/\s{2,}/g, ' ');
+        console.log(`[DEBUG] ✅ Nombre encontrado con patrón alternativo: "${datos.nombre}"`);
+        break;
+      }
+    }
+  }
+
   if (!datos.nombre) datos.errores_admision.push('Nombre del paciente no encontrado');
 
   const patronesDni = [
@@ -243,8 +275,6 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
   const fechaAdmisionDate = ingreso;
   const fechaAltaDate = alta;
 
-  // FASE 1: Identificar todas las fechas únicas que tienen "Evolución médica diaria"
-  // Recorremos todas las visitas y marcamos las fechas que tienen al menos una evolución
   const visitasPorFecha = new Map<string, number>();
 
   for (const visitaInfo of visitasEncontradas) {
@@ -257,14 +287,11 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
       const mesPad = mes.padStart(2, '0');
       const fechaVisita = new Date(`${anio}-${mesPad}-${diaPad}`);
 
-      // Solo procesar visitas dentro del rango de hospitalización
       if (fechaVisita >= new Date(fechaAdmisionDate.toDateString()) &&
           fechaVisita <= new Date(fechaAltaDate.toDateString())) {
 
-        // Contar visitas por fecha
         visitasPorFecha.set(fechaStr, (visitasPorFecha.get(fechaStr) || 0) + 1);
 
-        // Buscar "Evolución médica diaria" después de esta visita
         const bloqueTexto = textoNormalizado.substring(posicion, posicion + 2000);
 
         for (const patron of patronesEvolDiaria) {
@@ -287,8 +314,6 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
     console.log(`[DEBUG]   ${fecha}: ${cantidad} visita(s) - ${tieneEvolucion ? '✓ CON' : '✗ SIN'} evolución médica diaria`);
   }
 
-  // FASE 2: Generar errores solo para fechas que NO tienen "Evolución médica diaria"
-  // Procesamos cada fecha única solo una vez
   const fechasYaProcesadas = new Set<string>();
 
   for (const [fechaStr] of visitasPorFecha) {
@@ -303,7 +328,6 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
       const mesPad = mes.padStart(2, '0');
       const fechaVisita = new Date(`${anio}-${mesPad}-${diaPad}`);
 
-      // Si esta fecha NO tiene evolución médica diaria, verificar si necesita reportar error
       if (!diasConEvolucion.has(fechaStr)) {
         if (fechaVisita.getTime() === new Date(fechaAdmisionDate.toDateString()).getTime()) {
           console.log(`[DEBUG] ℹ️  ${fechaStr}: Día de admisión - No se requiere evolución médica diaria`);
@@ -578,20 +602,24 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
 
   for (let i = 0; i < lineasFoja.length; i++) {
     const linea = lineasFoja[i].trim();
-    if (linea && /bisturí|armónico/i.test(linea)) {
+    if (linea && /uso\s+de\s+bisturí\s+armónico|bisturí\s+armónico/i.test(linea)) {
       console.log(`\nLínea ${i+1}: "${linea}"`);
-      console.log(`  🎯 ¡ENCONTRADO! Esta línea contiene bisturí/armónico`);
+      console.log(`  🎯 ¡ENCONTRADO! Esta línea contiene la pregunta sobre bisturí armónico`);
 
-      if (/\bsi\b/i.test(linea)) {
-        console.log(`  ✅ Contiene 'SI'`);
-        resultados.bisturi_armonico = 'SI';
-        break;
-      } else if (/\bno\b/i.test(linea)) {
-        console.log(`  ❌ Contiene 'NO'`);
-        resultados.bisturi_armonico = 'NO';
-        break;
-      } else {
-        console.log(`  ❓ No contiene SI/NO claramente`);
+      const partes = linea.split(/uso\s+de\s+bisturí\s+armónico\??|bisturí\s+armónico\??/i);
+      if (partes.length > 1) {
+        const respuesta = partes[partes.length - 1].trim();
+        console.log(`  📝 Respuesta extraída: "${respuesta}"`);
+
+        if (/^si\b/i.test(respuesta)) {
+          console.log(`  ✅ La respuesta es 'SI'`);
+          resultados.bisturi_armonico = 'SI';
+          break;
+        } else if (/^no\b/i.test(respuesta)) {
+          console.log(`  ❌ La respuesta es 'NO'`);
+          resultados.bisturi_armonico = 'NO';
+          break;
+        }
       }
     }
   }
@@ -727,7 +755,6 @@ function generarComunicacionesOptimizadas(
 ): Comunicacion[] {
   const comunicaciones: Comunicacion[] = [];
 
-  // 1. COMUNICACIONES A ADMISIÓN
   if (erroresAdmision.length > 0) {
     comunicaciones.push({
       sector: 'Admisión',
@@ -739,7 +766,6 @@ function generarComunicacionesOptimizadas(
     });
   }
 
-  // 2. COMUNICACIONES A MÉDICOS RESIDENTES - UNA SOLA COMUNICACIÓN
   if (erroresEvolucion.length > 0) {
     const residentesUnicos: Doctor[] = [];
     const nombresVistos = new Set<string>();
@@ -781,7 +807,6 @@ function generarComunicacionesOptimizadas(
     }
   }
 
-  // 2.5. COMUNICACIONES SOBRE ADVERTENCIAS
   if (advertencias.length > 0) {
     comunicaciones.push({
       sector: 'Residentes',
@@ -793,7 +818,6 @@ function generarComunicacionesOptimizadas(
     });
   }
 
-  // 3. COMUNICACIONES A CIRUJANOS (Alta médica) - UNA SOLA COMUNICACIÓN
   const faltaAltaMedica = erroresAltaMedica.some(error => /alta/i.test(error));
   if (faltaAltaMedica) {
     const cirujanosUnicos: Doctor[] = [];
@@ -828,7 +852,6 @@ function generarComunicacionesOptimizadas(
     }
   }
 
-  // 4. COMUNICACIONES A CIRUJANOS (Epicrisis) - UNA SOLA COMUNICACIÓN
   if (erroresEpicrisis.length > 0) {
     const cirujanosUnicos: Doctor[] = [];
     const nombresVistos = new Set<string>();
@@ -862,7 +885,6 @@ function generarComunicacionesOptimizadas(
     }
   }
 
-  // 5. COMUNICACIONES SOBRE FOJA QUIRÚRGICA - UNA SOLA COMUNICACIÓN
   if (erroresFoja.length > 0 || resultadosFoja.errores.length > 0) {
     const cirujanosUnicos: Doctor[] = [];
     const nombresVistos = new Set<string>();
@@ -902,7 +924,6 @@ function generarComunicacionesOptimizadas(
     }
   }
 
-  // 6. COMUNICACIÓN ESPECIAL SI SE USÓ BISTURÍ ARMÓNICO - UNA SOLA COMUNICACIÓN
   if (resultadosFoja.bisturi_armonico === 'SI') {
     const cirujanosUnicos: Doctor[] = [];
     const nombresVistos = new Set<string>();
@@ -974,7 +995,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Si no hay fecha de alta, usar la fecha actual (paciente aún internado)
     const fechaAlta = alta || new Date();
     const pacienteInternado = !alta;
 
@@ -986,7 +1006,6 @@ Deno.serve(async (req: Request) => {
     const datosPaciente = extraerDatosPaciente(pdfText);
     const { errores: erroresEvolucion, evolucionesRepetidas, advertencias } = extraerEvolucionesMejorado(pdfText, ingreso, fechaAlta);
 
-    // Solo verificar alta y epicrisis si el paciente ya fue dado de alta
     const erroresAltaMedica = pacienteInternado ? [] : verificarAltaMedica(pdfText);
     const erroresEpicrisis = pacienteInternado ? [] : verificarEpicrisis(pdfText);
 
@@ -996,7 +1015,6 @@ Deno.serve(async (req: Request) => {
     const doctores = extraerDoctores(pdfText);
     const resultadosFoja = analizarFojaQuirurgica(pdfText);
 
-    // Validar equipo quirúrgico único
     const erroresEquipoUnico = validarEquipoQuirurgicoUnico(resultadosFoja);
     if (erroresEquipoUnico.length > 0) {
       resultadosFoja.errores.push(...erroresEquipoUnico);
