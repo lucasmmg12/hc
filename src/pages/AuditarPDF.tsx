@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Upload, FileCheck, Loader2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
+import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { InformeAuditoria } from '../components/InformeAuditoria';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+if (typeof window !== 'undefined') {
+  (pdfjsLib as any).GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+}
 
 interface ResultadoAuditoria {
   nombreArchivo: string;
@@ -59,20 +62,26 @@ export function AuditarPDF() {
   const [error, setError] = useState<string | null>(null);
 
   const extractTextFromPDF = async (file: File): Promise<string> => {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = '';
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const loadingTask = (pdfjsLib as any).getDocument({ data: arrayBuffer });
+      const pdf: PDFDocumentProxy = await loadingTask.promise;
+      let fullText = '';
 
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items
-        .map((item: any) => item.str)
-        .join(' ');
-      fullText += pageText + '\n';
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        fullText += pageText + '\n';
+      }
+
+      return fullText;
+    } catch (err) {
+      console.error('Error al extraer texto del PDF:', err);
+      throw new Error('No se pudo cargar el PDF. Verifique que el archivo no esté dañado.');
     }
-
-    return fullText;
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
