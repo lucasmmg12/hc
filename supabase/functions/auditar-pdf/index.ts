@@ -116,6 +116,7 @@ function extractIngresoAlta(text: string): { ingreso: Date | null; alta: Date | 
 function extraerDatosPaciente(texto: string): DatosPaciente {
   const datos: DatosPaciente = { errores_admision: [] };
   const lineas = texto.split('\n');
+  const textoInicial = lineas.slice(0, 50).join('\n');
 
   console.log('[DEBUG] === Búsqueda de nombre del paciente ===');
 
@@ -145,7 +146,6 @@ function extraerDatosPaciente(texto: string): DatosPaciente {
 
   if (!datos.nombre) {
     console.log('[DEBUG] No se encontró con método "Datos Paciente", usando patrones alternativos');
-    const textoInicial = lineas.slice(0, 50).join('\n');
 
     const patronesNombre = [
       /nombre[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ\s,]{10,})/i,
