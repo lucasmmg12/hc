@@ -275,8 +275,6 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
   const fechaAdmisionDate = ingreso;
   const fechaAltaDate = alta;
 
-  // FASE 1: Identificar todas las fechas únicas que tienen "Evolución médica diaria"
-  // Recorremos todas las visitas y marcamos las fechas que tienen al menos una evolución
   const visitasPorFecha = new Map<string, number>();
 
   for (const visitaInfo of visitasEncontradas) {
@@ -289,14 +287,11 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
       const mesPad = mes.padStart(2, '0');
       const fechaVisita = new Date(`${anio}-${mesPad}-${diaPad}`);
 
-      // Solo procesar visitas dentro del rango de hospitalización
       if (fechaVisita >= new Date(fechaAdmisionDate.toDateString()) &&
           fechaVisita <= new Date(fechaAltaDate.toDateString())) {
 
-        // Contar visitas por fecha
         visitasPorFecha.set(fechaStr, (visitasPorFecha.get(fechaStr) || 0) + 1);
 
-        // Buscar "Evolución médica diaria" después de esta visita
         const bloqueTexto = textoNormalizado.substring(posicion, posicion + 2000);
 
         for (const patron of patronesEvolDiaria) {
@@ -319,8 +314,6 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
     console.log(`[DEBUG]   ${fecha}: ${cantidad} visita(s) - ${tieneEvolucion ? '✓ CON' : '✗ SIN'} evolución médica diaria`);
   }
 
-  // FASE 2: Generar errores solo para fechas que NO tienen "Evolución médica diaria"
-  // Procesamos cada fecha única solo una vez
   const fechasYaProcesadas = new Set<string>();
 
   for (const [fechaStr] of visitasPorFecha) {
@@ -335,7 +328,6 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
       const mesPad = mes.padStart(2, '0');
       const fechaVisita = new Date(`${anio}-${mesPad}-${diaPad}`);
 
-      // Si esta fecha NO tiene evolución médica diaria, verificar si necesita reportar error
       if (!diasConEvolucion.has(fechaStr)) {
         if (fechaVisita.getTime() === new Date(fechaAdmisionDate.toDateString()).getTime()) {
           console.log(`[DEBUG] ℹ️  ${fechaStr}: Día de admisión - No se requiere evolución médica diaria`);
@@ -763,7 +755,6 @@ function generarComunicacionesOptimizadas(
 ): Comunicacion[] {
   const comunicaciones: Comunicacion[] = [];
 
-  // 1. COMUNICACIONES A ADMISIÓN
   if (erroresAdmision.length > 0) {
     comunicaciones.push({
       sector: 'Admisión',
@@ -775,7 +766,6 @@ function generarComunicacionesOptimizadas(
     });
   }
 
-  // 2. COMUNICACIONES A MÉDICOS RESIDENTES - UNA SOLA COMUNICACIÓN
   if (erroresEvolucion.length > 0) {
     const residentesUnicos: Doctor[] = [];
     const nombresVistos = new Set<string>();
@@ -817,7 +807,6 @@ function generarComunicacionesOptimizadas(
     }
   }
 
-  // 2.5. COMUNICACIONES SOBRE ADVERTENCIAS
   if (advertencias.length > 0) {
     comunicaciones.push({
       sector: 'Residentes',
@@ -829,7 +818,6 @@ function generarComunicacionesOptimizadas(
     });
   }
 
-  // 3. COMUNICACIONES A CIRUJANOS (Alta médica) - UNA SOLA COMUNICACIÓN
   const faltaAltaMedica = erroresAltaMedica.some(error => /alta/i.test(error));
   if (faltaAltaMedica) {
     const cirujanosUnicos: Doctor[] = [];
@@ -864,7 +852,6 @@ function generarComunicacionesOptimizadas(
     }
   }
 
-  // 4. COMUNICACIONES A CIRUJANOS (Epicrisis) - UNA SOLA COMUNICACIÓN
   if (erroresEpicrisis.length > 0) {
     const cirujanosUnicos: Doctor[] = [];
     const nombresVistos = new Set<string>();
@@ -898,7 +885,6 @@ function generarComunicacionesOptimizadas(
     }
   }
 
-  // 5. COMUNICACIONES SOBRE FOJA QUIRÚRGICA - UNA SOLA COMUNICACIÓN
   if (erroresFoja.length > 0 || resultadosFoja.errores.length > 0) {
     const cirujanosUnicos: Doctor[] = [];
     const nombresVistos = new Set<string>();
@@ -938,7 +924,6 @@ function generarComunicacionesOptimizadas(
     }
   }
 
-  // 6. COMUNICACIÓN ESPECIAL SI SE USÓ BISTURÍ ARMÓNICO - UNA SOLA COMUNICACIÓN
   if (resultadosFoja.bisturi_armonico === 'SI') {
     const cirujanosUnicos: Doctor[] = [];
     const nombresVistos = new Set<string>();
@@ -1010,7 +995,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Si no hay fecha de alta, usar la fecha actual (paciente aún internado)
     const fechaAlta = alta || new Date();
     const pacienteInternado = !alta;
 
@@ -1022,7 +1006,6 @@ Deno.serve(async (req: Request) => {
     const datosPaciente = extraerDatosPaciente(pdfText);
     const { errores: erroresEvolucion, evolucionesRepetidas, advertencias } = extraerEvolucionesMejorado(pdfText, ingreso, fechaAlta);
 
-    // Solo verificar alta y epicrisis si el paciente ya fue dado de alta
     const erroresAltaMedica = pacienteInternado ? [] : verificarAltaMedica(pdfText);
     const erroresEpicrisis = pacienteInternado ? [] : verificarEpicrisis(pdfText);
 
@@ -1032,7 +1015,6 @@ Deno.serve(async (req: Request) => {
     const doctores = extraerDoctores(pdfText);
     const resultadosFoja = analizarFojaQuirurgica(pdfText);
 
-    // Validar equipo quirúrgico único
     const erroresEquipoUnico = validarEquipoQuirurgicoUnico(resultadosFoja);
     if (erroresEquipoUnico.length > 0) {
       resultadosFoja.errores.push(...erroresEquipoUnico);
