@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Upload, FileCheck, Loader2 } from 'lucide-react';
+import * as pdfjsLib from 'pdfjs-dist';
 import { InformeAuditoria } from '../components/InformeAuditoria';
-import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 interface ResultadoAuditoria {
   nombreArchivo: string;
@@ -59,26 +59,20 @@ export function AuditarPDF() {
   const [error, setError] = useState<string | null>(null);
 
   const extractTextFromPDF = async (file: File): Promise<string> => {
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-      const pdf = await loadingTask.promise;
-      let fullText = '';
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    let fullText = '';
 
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
-        fullText += pageText + '\n';
-      }
-
-      return fullText;
-    } catch (err) {
-      console.error('Error al extraer texto del PDF:', err);
-      throw new Error('No se pudo cargar el PDF. Verifique que el archivo no esté dañado.');
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      fullText += pageText + '\n';
     }
+
+    return fullText;
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
