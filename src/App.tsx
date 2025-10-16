@@ -10,13 +10,13 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ backgroundImage: 'url("/Diseño sin título (7).png")', backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}>
+    <div className="min-h-screen bg-gray-50" style={{ backgroundImage: 'url("/logo-main.png")', backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}>
       <header className="bg-white/95 backdrop-blur-sm shadow-lg sticky top-0 z-50 border-b-2 border-green-500">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <img
-                src="/Diseño sin título (4).png"
+                src="/logo-header.png"
                 alt="Grow Labs Logo"
                 className="h-16 w-16 object-contain"
               />
@@ -117,7 +117,7 @@ function App() {
             <div>
               <div className="flex items-center gap-3 mb-4">
                 <img
-                  src="/Diseño sin título (4).png"
+                  src="/logo-header.png"
                   alt="Grow Labs Logo"
                   className="h-12 w-12 object-contain bg-white rounded-full p-1"
                 />
