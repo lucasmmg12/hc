@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Upload, FileCheck, Loader2 } from 'lucide-react';
-import * as pdfjsLib from 'pdfjs-dist';
-import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { InformeAuditoria } from '../components/InformeAuditoria';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf.mjs';
 
-if (typeof window !== 'undefined') {
-  (pdfjsLib as any).GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
-}
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
 interface ResultadoAuditoria {
   nombreArchivo: string;
@@ -64,8 +61,8 @@ export function AuditarPDF() {
   const extractTextFromPDF = async (file: File): Promise<string> => {
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const loadingTask = (pdfjsLib as any).getDocument({ data: arrayBuffer });
-      const pdf: PDFDocumentProxy = await loadingTask.promise;
+      const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+      const pdf = await loadingTask.promise;
       let fullText = '';
 
       for (let i = 1; i <= pdf.numPages; i++) {
