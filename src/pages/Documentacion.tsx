@@ -4,19 +4,19 @@ export function Documentacion() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold text-white drop-shadow-lg">Sistema de Auditoría Médica</h1>
-        <p className="text-xl text-white font-semibold drop-shadow-lg">Sanatorio Argentino - San Juan</p>
-        <p className="text-lg text-white max-w-3xl mx-auto font-medium drop-shadow-lg">
+        <h1 className="text-4xl font-bold text-gray-900">Sistema de Auditoría Médica</h1>
+        <p className="text-xl text-gray-600">Sanatorio Argentino - San Juan</p>
+        <p className="text-lg text-gray-500 max-w-3xl mx-auto">
           Automatización inteligente de auditorías de historias clínicas para prevenir débitos de OSDE
         </p>
       </div>
 
-      <section className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-l-4 border-green-600">
+      <section className="bg-white rounded-xl shadow-md p-8 border-l-4 border-blue-600">
         <div className="flex items-start gap-4">
           <FileText className="w-8 h-8 text-blue-600 flex-shrink-0 mt-1" />
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Descripción General</h2>
-            <p className="text-gray-800 leading-relaxed">
+            <p className="text-gray-700 leading-relaxed">
               Este sistema automatiza la auditoría de historias clínicas en formato PDF para detectar errores y omisiones
               que podrían causar débitos en OSDE. Analiza evoluciones médicas, foja quirúrgica, alta, epicrisis y genera
               comunicaciones automáticas por sector responsable.
@@ -25,7 +25,7 @@ export function Documentacion() {
         </div>
       </section>
 
-      <section className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-l-4 border-green-600">
+      <section className="bg-white rounded-xl shadow-md p-8 border-l-4 border-green-600">
         <div className="flex items-start gap-4">
           <Target className="w-8 h-8 text-green-600 flex-shrink-0 mt-1" />
           <div className="flex-1">
@@ -74,15 +74,15 @@ export function Documentacion() {
         </div>
       </section>
 
-      <section className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-l-4 border-green-700">
+      <section className="bg-white rounded-xl shadow-md p-8 border-l-4 border-purple-600">
         <div className="flex items-start gap-4">
-          <Workflow className="w-8 h-8 text-green-700 flex-shrink-0 mt-1" />
+          <Workflow className="w-8 h-8 text-purple-600 flex-shrink-0 mt-1" />
           <div className="flex-1">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Flujo de Trabajo</h2>
 
             <div className="space-y-4">
-              <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg">
-                <div className="flex-shrink-0 w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">
+              <div className="flex items-start gap-4 p-4 bg-purple-50 rounded-lg">
+                <div className="flex-shrink-0 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
                   1
                 </div>
                 <div>
@@ -91,8 +91,8 @@ export function Documentacion() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg">
-                <div className="flex-shrink-0 w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">
+              <div className="flex items-start gap-4 p-4 bg-purple-50 rounded-lg">
+                <div className="flex-shrink-0 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
                   2
                 </div>
                 <div>
@@ -101,8 +101,8 @@ export function Documentacion() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg">
-                <div className="flex-shrink-0 w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">
+              <div className="flex items-start gap-4 p-4 bg-purple-50 rounded-lg">
+                <div className="flex-shrink-0 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
                   3
                 </div>
                 <div>
@@ -111,8 +111,8 @@ export function Documentacion() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg">
-                <div className="flex-shrink-0 w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">
+              <div className="flex items-start gap-4 p-4 bg-purple-50 rounded-lg">
+                <div className="flex-shrink-0 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
                   4
                 </div>
                 <div>
@@ -121,8 +121,8 @@ export function Documentacion() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg">
-                <div className="flex-shrink-0 w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">
+              <div className="flex items-start gap-4 p-4 bg-purple-50 rounded-lg">
+                <div className="flex-shrink-0 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
                   5
                 </div>
                 <div>
@@ -131,8 +131,8 @@ export function Documentacion() {
                 </div>
               </div>
 
-              <div className="flex items-start gap-4 p-4 bg-green-50 rounded-lg">
-                <div className="flex-shrink-0 w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">
+              <div className="flex items-start gap-4 p-4 bg-purple-50 rounded-lg">
+                <div className="flex-shrink-0 w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center font-bold">
                   6
                 </div>
                 <div>
@@ -145,7 +145,7 @@ export function Documentacion() {
         </div>
       </section>
 
-      <section className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-l-4 border-red-600">
+      <section className="bg-white rounded-xl shadow-md p-8 border-l-4 border-red-600">
         <div className="flex items-start gap-4">
           <AlertTriangle className="w-8 h-8 text-red-600 flex-shrink-0 mt-1" />
           <div className="flex-1">
@@ -236,7 +236,7 @@ export function Documentacion() {
         </div>
       </section>
 
-      <section className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-l-4 border-orange-600">
+      <section className="bg-white rounded-xl shadow-md p-8 border-l-4 border-orange-600">
         <div className="flex items-start gap-4">
           <MessageSquare className="w-8 h-8 text-orange-600 flex-shrink-0 mt-1" />
           <div className="flex-1">
@@ -301,7 +301,7 @@ export function Documentacion() {
         </div>
       </section>
 
-      <section className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-l-4 border-yellow-600">
+      <section className="bg-white rounded-xl shadow-md p-8 border-l-4 border-yellow-600">
         <div className="flex items-start gap-4">
           <Shield className="w-8 h-8 text-yellow-600 flex-shrink-0 mt-1" />
           <div className="flex-1">
@@ -340,6 +340,15 @@ export function Documentacion() {
         </div>
       </section>
 
+      <section className="bg-gray-900 text-white rounded-xl shadow-md p-8">
+        <h2 className="text-2xl font-bold mb-4">Contacto y Soporte</h2>
+        <p className="text-gray-300 mb-2">
+          Sistema desarrollado por <strong className="text-blue-400">Grow Labs</strong>
+        </p>
+        <p className="text-gray-300">
+          Sanatorio Argentino - San Juan, Argentina
+        </p>
+      </section>
     </div>
   );
 }

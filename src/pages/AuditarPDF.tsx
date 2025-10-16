@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Upload, FileCheck, Loader2 } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
 import { InformeAuditoria } from '../components/InformeAuditoria';
@@ -102,19 +102,12 @@ export function AuditarPDF() {
       formData.append('nombreArchivo', file.name);
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      if (!supabaseUrl || !supabaseKey) {
-        throw new Error('Configuración de Supabase no disponible. Variables de entorno faltantes.');
-      }
-
       console.log('Enviando a Edge Function:', `${supabaseUrl}/functions/v1/auditar-pdf`);
-      console.log('Supabase URL:', supabaseUrl);
 
       const response = await fetch(`${supabaseUrl}/functions/v1/auditar-pdf`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${supabaseKey}`,
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
         },
         body: formData,
       });
@@ -147,14 +140,14 @@ export function AuditarPDF() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-12">
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold text-white mb-4 drop-shadow-lg">Auditar Historia Clínica</h1>
-        <p className="text-lg text-white font-medium drop-shadow-lg">
+        <h1 className="text-4xl font-bold text-gray-900 mb-4">Auditar Historia Clínica</h1>
+        <p className="text-lg text-gray-600">
           Suba la historia clínica en PDF para generar el informe automático
         </p>
       </div>
 
       {!resultado && (
-        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-2 border-dashed border-gray-300 hover:border-green-500 transition-colors">
+        <div className="bg-white rounded-xl shadow-lg p-8 border-2 border-dashed border-gray-300 hover:border-blue-500 transition-colors">
           <div className="text-center">
             <div className="mb-6 flex justify-center">
               {isProcessing ? (
@@ -184,7 +177,7 @@ export function AuditarPDF() {
 
                 <label
                   htmlFor="pdf-upload"
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-all shadow-lg hover:shadow-xl cursor-pointer"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
                 >
                   <FileCheck className="w-5 h-5" />
                   Seleccionar PDF
@@ -217,7 +210,7 @@ export function AuditarPDF() {
                 setAuditoriaId(null);
                 setError(null);
               }}
-              className="px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-all shadow-lg hover:shadow-xl"
+              className="px-6 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 transition-colors"
             >
               Auditar otro archivo
             </button>
