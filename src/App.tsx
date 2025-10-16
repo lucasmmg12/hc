@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { FileText, Stethoscope, Menu, X } from 'lucide-react';
+import { FileText, Stethoscope, Menu, X, Instagram, Globe, MessageCircle, Linkedin } from 'lucide-react';
 import { Documentacion } from './pages/Documentacion';
 import { AuditarPDF } from './pages/AuditarPDF';
 
@@ -10,17 +10,19 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <header className="bg-white shadow-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
+    <div className="min-h-screen bg-gray-50" style={{ backgroundImage: 'url("/Diseño sin título (7).png")', backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}>
+      <header className="bg-white/95 backdrop-blur-sm shadow-lg sticky top-0 z-50 border-b-2 border-green-500">
+        <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg flex items-center justify-center">
-                <Stethoscope className="w-7 h-7 text-white" />
-              </div>
+            <div className="flex items-center gap-4">
+              <img
+                src="/Diseño sin título (4).png"
+                alt="Grow Labs Logo"
+                className="h-16 w-16 object-contain"
+              />
               <div>
                 <h1 className="text-xl font-bold text-gray-900">Auditoría Médica</h1>
-                <p className="text-sm text-gray-600">Sanatorio Argentino</p>
+                <p className="text-sm text-green-600 font-medium">Donde tus ideas crecen</p>
               </div>
             </div>
 
@@ -29,8 +31,8 @@ function App() {
                 onClick={() => setCurrentPage('documentacion')}
                 className={`px-6 py-2 rounded-lg font-semibold transition-all ${
                   currentPage === 'documentacion'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-green-600 text-white shadow-lg'
+                    : 'bg-white text-gray-700 hover:bg-green-50 border border-gray-200'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -42,8 +44,8 @@ function App() {
                 onClick={() => setCurrentPage('auditar')}
                 className={`px-6 py-2 rounded-lg font-semibold transition-all ${
                   currentPage === 'auditar'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    ? 'bg-green-600 text-white shadow-lg'
+                    : 'bg-white text-gray-700 hover:bg-green-50 border border-gray-200'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -54,7 +56,7 @@ function App() {
             </nav>
 
             <button
-              className="md:hidden p-2 rounded-lg hover:bg-gray-100"
+              className="md:hidden p-2 rounded-lg hover:bg-green-50"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             >
               {mobileMenuOpen ? (
@@ -74,8 +76,8 @@ function App() {
                 }}
                 className={`px-6 py-3 rounded-lg font-semibold transition-all text-left ${
                   currentPage === 'documentacion'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-white text-gray-700 border border-gray-200'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -90,8 +92,8 @@ function App() {
                 }}
                 className={`px-6 py-3 rounded-lg font-semibold transition-all text-left ${
                   currentPage === 'auditar'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-white text-gray-700 border border-gray-200'
                 }`}
               >
                 <span className="flex items-center gap-2">
@@ -109,14 +111,96 @@ function App() {
         {currentPage === 'auditar' && <AuditarPDF />}
       </main>
 
-      <footer className="bg-gray-900 text-white py-6">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-gray-400">
-            Sistema desarrollado por <span className="text-blue-400 font-semibold">Grow Labs</span>
-          </p>
-          <p className="text-gray-500 text-sm mt-1">
-            Sanatorio Argentino - San Juan, Argentina
-          </p>
+      <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-green-900 text-white py-12 mt-16">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="grid md:grid-cols-2 gap-8 mb-8">
+            <div>
+              <div className="flex items-center gap-3 mb-4">
+                <img
+                  src="/Diseño sin título (4).png"
+                  alt="Grow Labs Logo"
+                  className="h-12 w-12 object-contain bg-white rounded-full p-1"
+                />
+                <div>
+                  <h3 className="text-2xl font-bold text-white">Grow Labs</h3>
+                  <p className="text-green-400 text-sm font-medium">Donde tus ideas crecen</p>
+                </div>
+              </div>
+              <p className="text-gray-300 mb-4 leading-relaxed">
+                Startup tecnológica especializada en inteligencia artificial y automatización de procesos.
+                Transformamos ideas en soluciones innovadoras.
+              </p>
+              <div className="flex gap-4">
+                <a
+                  href="https://www.instagram.com/growsanjuan/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-gradient-to-br from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600 text-white px-4 py-2 rounded-lg transition-all shadow-md hover:shadow-lg"
+                >
+                  <Instagram className="w-5 h-5" />
+                  <span className="text-sm font-medium">Instagram</span>
+                </a>
+                <a
+                  href="https://api.whatsapp.com/send/?phone=5492643229503&text&type=phone_number&app_absent=0"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-all shadow-md hover:shadow-lg"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  <span className="text-sm font-medium">WhatsApp</span>
+                </a>
+              </div>
+              <div className="flex gap-4 mt-3">
+                <a
+                  href="https://www.growsanjuan.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-all shadow-md hover:shadow-lg"
+                >
+                  <Globe className="w-5 h-5" />
+                  <span className="text-sm font-medium">Sitio Web</span>
+                </a>
+                <a
+                  href="https://www.linkedin.com/in/lucas-marinero-182521308/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 bg-blue-700 hover:bg-blue-800 text-white px-4 py-2 rounded-lg transition-all shadow-md hover:shadow-lg"
+                >
+                  <Linkedin className="w-5 h-5" />
+                  <span className="text-sm font-medium">LinkedIn</span>
+                </a>
+              </div>
+            </div>
+
+            <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 border border-green-500/30">
+              <h4 className="text-xl font-bold text-white mb-3 flex items-center gap-2">
+                <Stethoscope className="w-6 h-6 text-green-400" />
+                Cliente Exclusivo
+              </h4>
+              <div className="space-y-2">
+                <p className="text-gray-300 text-sm">
+                  Esta plataforma ha sido desarrollada única y exclusivamente para:
+                </p>
+                <p className="text-xl font-bold text-green-400">
+                  Sanatorio Argentino
+                </p>
+                <p className="text-gray-400 text-sm">
+                  San Juan, Argentina
+                </p>
+                <div className="mt-4 pt-4 border-t border-gray-600">
+                  <p className="text-xs text-gray-400">
+                    Sistema de auditoría médica con tecnología de IA para optimización de procesos clínicos.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-700 pt-6 text-center">
+            <p className="text-gray-400 text-sm">
+              © 2025 Grow Labs. Todos los derechos reservados. | Powered by AI & Automation
+            </p>
+          </div>
         </div>
       </footer>
     </div>

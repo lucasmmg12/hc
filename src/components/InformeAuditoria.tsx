@@ -145,9 +145,9 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
 
   return (
     <div className="space-y-8">
-      <div className="bg-white rounded-xl shadow-lg p-8 border-t-4 border-blue-600">
+      <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-t-4 border-green-600">
         <div className="flex items-center gap-3 mb-6">
-          <FileText className="w-10 h-10 text-blue-600" />
+          <FileText className="w-10 h-10 text-green-600" />
           <div>
             <h1 className="text-3xl font-bold text-gray-900">INFORME DE AUDITORÍA MÉDICA</h1>
             <p className="text-gray-600">Sanatorio Argentino - Sistema Salus</p>
@@ -165,12 +165,12 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
           </div>
         </div>
 
-        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <h3 className="font-semibold text-blue-900 mb-2">Resumen General</h3>
+        <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+          <h3 className="font-semibold text-green-900 mb-2">Resumen General</h3>
           <p className="text-gray-700">
             {resultado.pacienteInternado && (
               <span className="block mb-2">
-                <strong className="text-blue-600">PACIENTE ACTUALMENTE INTERNADO</strong> - Los datos corresponden a la internación en curso.
+                <strong className="text-green-600">PACIENTE ACTUALMENTE INTERNADO</strong> - Los datos corresponden a la internación en curso.
               </span>
             )}
             Durante la auditoría automatizada se detectaron <strong className="text-red-600">{resultado.totalErrores} errores</strong> que requieren corrección{resultado.pacienteInternado ? ' durante la internación' : ' antes del envío a OSDE'}.
@@ -186,7 +186,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg p-8">
+      <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
         <div className="flex items-center gap-3 mb-6">
           <User className="w-8 h-8 text-gray-700" />
           <h2 className="text-2xl font-bold text-gray-900">Datos del Paciente</h2>
@@ -220,7 +220,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg p-8">
+      <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
         <div className="flex items-center gap-3 mb-6">
           <Calendar className="w-8 h-8 text-gray-700" />
           <h2 className="text-2xl font-bold text-gray-900">Período de Hospitalización</h2>
@@ -235,8 +235,8 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
             <p className="text-sm text-gray-600">Fecha de Alta</p>
             {resultado.pacienteInternado ? (
               <div>
-                <p className="text-lg font-semibold text-blue-600">Paciente Internado</p>
-                <p className="text-xs text-blue-500 mt-1">Sin alta registrada</p>
+                <p className="text-lg font-semibold text-green-600">Paciente Internado</p>
+                <p className="text-xs text-green-500 mt-1">Sin alta registrada</p>
               </div>
             ) : (
               <p className="text-lg font-semibold text-gray-900">{formatDate(resultado.fechaAlta)}</p>
@@ -249,7 +249,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg p-8">
+      <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
         <div className="flex items-center gap-3 mb-6">
           <AlertTriangle className="w-8 h-8 text-red-600" />
           <h2 className="text-2xl font-bold text-gray-900">Síntesis del Análisis</h2>
@@ -284,14 +284,14 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
             <p className="text-sm text-gray-600">Errores epicrisis</p>
             <p className="text-2xl font-bold text-gray-900">{resultado.erroresEpicrisis.length}</p>
           </div>
-          <div className="p-4 bg-blue-50 rounded-lg border border-blue-300">
-            <p className="text-sm text-blue-700">Comunicaciones generadas</p>
-            <p className="text-2xl font-bold text-blue-900">{resultado.comunicaciones.length}</p>
+          <div className="p-4 bg-green-50 rounded-lg border border-green-300">
+            <p className="text-sm text-green-700">Comunicaciones generadas</p>
+            <p className="text-2xl font-bold text-green-900">{resultado.comunicaciones.length}</p>
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg p-8">
+      <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
         <div className="flex items-center gap-3 mb-6">
           <AlertCircle className="w-8 h-8 text-red-600" />
           <h2 className="text-2xl font-bold text-gray-900">Errores Detectados</h2>
@@ -447,9 +447,9 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
       </div>
 
       {resultado.comunicaciones.length > 0 && (
-        <div className="bg-white rounded-xl shadow-lg p-8">
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
           <div className="flex items-center gap-3 mb-6">
-            <MessageSquare className="w-8 h-8 text-blue-600" />
+            <MessageSquare className="w-8 h-8 text-green-600" />
             <h2 className="text-2xl font-bold text-gray-900">Comunicaciones Generadas</h2>
           </div>
 
@@ -561,7 +561,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
       )}
 
       {resultado.resultadosFoja && (
-        <div className="bg-white rounded-xl shadow-lg p-8">
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Verificaciones Adicionales</h2>
 
           <div className="grid md:grid-cols-2 gap-6">
@@ -600,7 +600,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
                 <p className="text-sm text-gray-600 mb-2">Equipo quirúrgico</p>
                 <div className="flex flex-wrap gap-2">
                   {resultado.resultadosFoja.equipo_quirurgico.map((miembro, idx) => (
-                    <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                    <span key={idx} className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
                       {miembro.rol.charAt(0).toUpperCase() + miembro.rol.slice(1)}: {miembro.nombre}
                     </span>
                   ))}
@@ -630,7 +630,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
           <span
             className={`px-4 py-2 rounded-full font-bold ${
               resultado.pacienteInternado
-                ? 'bg-blue-600 text-white'
+                ? 'bg-green-600 text-white'
                 : resultado.totalErrores > 0
                 ? 'bg-red-600 text-white'
                 : 'bg-green-600 text-white'
@@ -651,7 +651,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
 
         <div className="mt-6 pt-6 border-t border-gray-700">
           <p className="text-gray-400 text-sm">
-            Sistema desarrollado por <strong className="text-blue-400">Grow Labs</strong> - Sanatorio Argentino, San Juan
+            Sistema desarrollado por <strong className="text-green-400">Grow Labs</strong> - Sanatorio Argentino, San Juan
           </p>
         </div>
       </div>
