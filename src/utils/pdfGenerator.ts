@@ -55,7 +55,7 @@ const ERROR_RED = [220, 38, 38];
 const WARNING_YELLOW = [245, 158, 11];
 const LIGHT_GRAY = [249, 250, 251];
 
-export async function generateAuditPDF(resultado: ResultadoAuditoria): Promise<void> {
+export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPDF: boolean = true): Promise<Blob> {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -530,5 +530,10 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria): Promise<v
   }
 
   const fileName = `Auditoria_${resultado.datosPaciente.nombre || 'Paciente'}_${new Date().toLocaleDateString('es-AR').replace(/\//g, '-')}.pdf`;
-  doc.save(fileName);
+
+  if (downloadPDF) {
+    doc.save(fileName);
+  }
+
+  return doc.output('blob');
 }

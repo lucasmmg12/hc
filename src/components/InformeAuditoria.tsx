@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle, FileText, Calendar, User, MessageSquare, Send, Loader2, CheckCircle2, Download } from 'lucide-react';
 import { enviarMensajeWhatsApp, verificarMensajeEnviado } from '../services/whatsappService';
 import { generateAuditPDF } from '../utils/pdfGenerator';
+import { uploadPDFToStorage, updateAuditoriaPDFUrl } from '../services/pdfStorageService';
 
 interface ResultadoAuditoria {
   nombreArchivo: string;
@@ -60,7 +61,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
   const [enviando, setEnviando] = useState(false);
   const [mensajesEnviados, setMensajesEnviados] = useState<Set<number>>(new Set());
   const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
-  const [verificandoEnviados, setVerificandoEnviados] = useState(false);
+  const [, setVerificandoEnviados] = useState(false);
   const [generandoPDF, setGenerandoPDF] = useState(false);
 
   const formatDate = (dateString: string) => {
@@ -148,7 +149,20 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
   const handleDescargarPDF = async () => {
     setGenerandoPDF(true);
     try {
-      await generateAuditPDF(resultado);
+      const pdfBlob = await generateAuditPDF(resultado, true);
+
+      if (auditoriaId) {
+        const uploadResult = await uploadPDFToStorage(
+          pdfBlob,
+          resultado.datosPaciente.nombre || 'Paciente'
+        );
+
+        if (uploadResult.success && uploadResult.url) {
+          await updateAuditoriaPDFUrl(auditoriaId, uploadResult.url);
+          console.log('PDF guardado en Storage:', uploadResult.url);
+        }
+      }
+
       showNotification('PDF descargado exitosamente', 'success');
     } catch (error) {
       console.error('Error al generar PDF:', error);
@@ -157,6 +171,31 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
       setGenerandoPDF(false);
     }
   };
+
+  useEffect(() => {
+    const generarYSubirPDFAutomatico = async () => {
+      if (auditoriaId && resultado) {
+        try {
+          const pdfBlob = await generateAuditPDF(resultado, false);
+
+          const uploadResult = await uploadPDFToStorage(
+            pdfBlob,
+            resultado.datosPaciente.nombre || 'Paciente',
+            resultado.nombreArchivo
+          );
+
+          if (uploadResult.success && uploadResult.url) {
+            await updateAuditoriaPDFUrl(auditoriaId, uploadResult.url);
+            console.log('PDF generado y guardado automáticamente:', uploadResult.url);
+          }
+        } catch (error) {
+          console.error('Error al generar PDF automático:', error);
+        }
+      }
+    };
+
+    generarYSubirPDFAutomatico();
+  }, [auditoriaId, resultado]);
 
   return (
     <div className="space-y-8">

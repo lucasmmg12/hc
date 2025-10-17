@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { FileText, Stethoscope, Menu, X, Instagram, Globe, MessageCircle, Linkedin } from 'lucide-react';
+import { FileText, Stethoscope, Menu, X, Instagram, Globe, MessageCircle, Linkedin, History } from 'lucide-react';
 import { Documentacion } from './pages/Documentacion';
 import { AuditarPDF } from './pages/AuditarPDF';
+import { Historial } from './pages/Historial';
 
-type Page = 'documentacion' | 'auditar';
+type Page = 'documentacion' | 'auditar' | 'historial';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('documentacion');
@@ -51,6 +52,19 @@ function App() {
                 <span className="flex items-center gap-2">
                   <Stethoscope className="w-4 h-4" />
                   Auditar PDF
+                </span>
+              </button>
+              <button
+                onClick={() => setCurrentPage('historial')}
+                className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                  currentPage === 'historial'
+                    ? 'bg-green-600 text-white shadow-lg'
+                    : 'bg-white text-gray-700 hover:bg-green-50 border border-gray-200'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <History className="w-4 h-4" />
+                  Historial
                 </span>
               </button>
             </nav>
@@ -101,6 +115,22 @@ function App() {
                   Auditar PDF
                 </span>
               </button>
+              <button
+                onClick={() => {
+                  setCurrentPage('historial');
+                  setMobileMenuOpen(false);
+                }}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all text-left ${
+                  currentPage === 'historial'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-white text-gray-700 border border-gray-200'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <History className="w-4 h-4" />
+                  Historial
+                </span>
+              </button>
             </nav>
           )}
         </div>
@@ -109,6 +139,7 @@ function App() {
       <main className="pb-12">
         {currentPage === 'documentacion' && <Documentacion />}
         {currentPage === 'auditar' && <AuditarPDF />}
+        {currentPage === 'historial' && <Historial />}
       </main>
 
       <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-green-900 text-white py-12 mt-16">
