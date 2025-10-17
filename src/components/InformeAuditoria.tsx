@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle, FileText, Calendar, User, MessageSquare, Send, Loader2, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, FileText, Calendar, User, MessageSquare, Send, Loader2, CheckCircle2, Download } from 'lucide-react';
 import { enviarMensajeWhatsApp, verificarMensajeEnviado } from '../services/whatsappService';
+import { generateAuditPDF } from '../utils/pdfGenerator';
 
 interface ResultadoAuditoria {
   nombreArchivo: string;
@@ -60,6 +61,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
   const [mensajesEnviados, setMensajesEnviados] = useState<Set<number>>(new Set());
   const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
   const [verificandoEnviados, setVerificandoEnviados] = useState(false);
+  const [generandoPDF, setGenerandoPDF] = useState(false);
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -143,8 +145,41 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
     }
   };
 
+  const handleDescargarPDF = async () => {
+    setGenerandoPDF(true);
+    try {
+      await generateAuditPDF(resultado);
+      showNotification('PDF descargado exitosamente', 'success');
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      showNotification('Error al generar el PDF', 'error');
+    } finally {
+      setGenerandoPDF(false);
+    }
+  };
+
   return (
     <div className="space-y-8">
+      <div className="flex justify-center mb-6">
+        <button
+          onClick={handleDescargarPDF}
+          disabled={generandoPDF}
+          className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-lg hover:from-green-700 hover:to-green-800 transition-all transform hover:scale-105 shadow-lg flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {generandoPDF ? (
+            <>
+              <Loader2 className="w-6 h-6 animate-spin" />
+              Generando PDF...
+            </>
+          ) : (
+            <>
+              <Download className="w-6 h-6" />
+              Descargar Informe en PDF
+            </>
+          )}
+        </button>
+      </div>
+
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-t-4 border-green-600">
         <div className="flex items-center gap-3 mb-6">
           <FileText className="w-10 h-10 text-green-600" />
@@ -654,6 +689,26 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
             Sistema desarrollado por <strong className="text-green-400">Grow Labs</strong> - Sanatorio Argentino, San Juan
           </p>
         </div>
+      </div>
+
+      <div className="flex justify-center mt-8">
+        <button
+          onClick={handleDescargarPDF}
+          disabled={generandoPDF}
+          className="px-8 py-4 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-lg hover:from-green-700 hover:to-green-800 transition-all transform hover:scale-105 shadow-lg flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {generandoPDF ? (
+            <>
+              <Loader2 className="w-6 h-6 animate-spin" />
+              Generando PDF...
+            </>
+          ) : (
+            <>
+              <Download className="w-6 h-6" />
+              Descargar Informe en PDF
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
