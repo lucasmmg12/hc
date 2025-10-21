@@ -54,6 +54,9 @@ interface ResultadosFoja {
   errores: string[];
 }
 
+/* =========================
+   Utilidades de Normalización
+   ========================= */
 function normalizarTexto(texto: string): string {
   return texto
     .toLowerCase()
@@ -78,41 +81,73 @@ function normalizarTextoPDF(texto: string): string {
   return texto;
 }
 
+/* =========================
+   Parseo de fechas ROBUSTO
+   ========================= */
+// Construye la fecha evitando el parser de strings del motor JS.
+function makeDate(d: string, hms?: string): Date {
+  const [ddStr, mmStr, yyyyStr] = d.split('/');
+  const dd = Number(ddStr);
+  const mm = Number(mmStr);
+  let yyyy = Number(yyyyStr);
+  if (yyyy < 100) {
+    // Si viniera con 2 dígitos, asume 20xx (ajustá si necesitás siglo distinto)
+    yyyy += 2000;
+  }
+
+  let hh = 0, mi = 0, ss = 0;
+  if (hms) {
+    const parts = hms.split(':');
+    hh = Number(parts[0] ?? 0);
+    mi = Number(parts[1] ?? 0);
+    ss = Number(parts[2] ?? 0);
+  }
+  // Año, mes (0-11), día, hora, minuto, segundo
+  return new Date(yyyy, (mm - 1), dd, hh, mi, ss);
+}
+
+// Devuelve fechas válidas o null; nunca devuelve Date inválidas.
 function extractIngresoAlta(text: string): { ingreso: Date | null; alta: Date | null } {
   let ingreso: Date | null = null;
   let alta: Date | null = null;
 
-  const matchIngreso = text.match(/fecha[\s_]*ingreso[\s:]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})[\s]+([0-9]{1,2}:[0-9]{2}:[0-9]{2})?/i);
-  if (matchIngreso) {
-    const fecha = matchIngreso[1];
-    const hora = matchIngreso[2] || "00:00:00";
-    try {
-      const [dia, mes, anio] = fecha.split('/');
-      const diaPad = dia.padStart(2, '0');
-      const mesPad = mes.padStart(2, '0');
-      ingreso = new Date(`${anio}-${mesPad}-${diaPad}T${hora}`);
-    } catch (e) {
-      console.error('Error parseando fecha de ingreso:', e);
+  // Captura ingreso/alta con fecha y hora (segundos opcionales)
+  const reFechaHora = /fecha[\s_]*(ingreso|alta)[\s:]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})[\s]+([0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = reFechaHora.exec(text)) !== null) {
+    const tipo = m[1].toLowerCase();
+    const fecha = m[2];
+    const hora = m[3];
+    const dt = makeDate(fecha, hora);
+    if (!Number.isNaN(dt.getTime())) {
+      if (tipo === 'ingreso') ingreso = dt;
+      if (tipo === 'alta') alta = dt;
     }
   }
 
-  const matchAlta = text.match(/fecha[\s_]*alta[\s:]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})[\s]+([0-9]{1,2}:[0-9]{2}:[0-9]{2})?/i);
-  if (matchAlta) {
-    const fecha = matchAlta[1];
-    const hora = matchAlta[2] || "00:00:00";
-    try {
-      const [dia, mes, anio] = fecha.split('/');
-      const diaPad = dia.padStart(2, '0');
-      const mesPad = mes.padStart(2, '0');
-      alta = new Date(`${anio}-${mesPad}-${diaPad}T${hora}`);
-    } catch (e) {
-      console.error('Error parseando fecha de alta:', e);
+  // Fallbacks si vino sin hora
+  if (!ingreso) {
+    const mi = text.match(/fecha[\s_]*ingreso[\s:]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i);
+    if (mi) {
+      const dt = makeDate(mi[1]);
+      if (!Number.isNaN(dt.getTime())) ingreso = dt;
+    }
+  }
+
+  if (!alta) {
+    const ma = text.match(/fecha[\s_]*alta[\s:]*([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{2,4})/i);
+    if (ma) {
+      const dt = makeDate(ma[1]);
+      if (!Number.isNaN(dt.getTime())) alta = dt;
     }
   }
 
   return { ingreso, alta };
 }
 
+/* =========================
+   Extracción de datos
+   ========================= */
 function extraerDatosPaciente(texto: string): DatosPaciente {
   const datos: DatosPaciente = { errores_admision: [] };
   const lineas = texto.split('\n');
@@ -243,8 +278,6 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
   const fechaAdmisionDate = ingreso;
   const fechaAltaDate = alta;
 
-  // FASE 1: Identificar todas las fechas únicas que tienen "Evolución médica diaria"
-  // Recorremos todas las visitas y marcamos las fechas que tienen al menos una evolución
   const visitasPorFecha = new Map<string, number>();
 
   for (const visitaInfo of visitasEncontradas) {
@@ -257,14 +290,11 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
       const mesPad = mes.padStart(2, '0');
       const fechaVisita = new Date(`${anio}-${mesPad}-${diaPad}`);
 
-      // Solo procesar visitas dentro del rango de hospitalización
       if (fechaVisita >= new Date(fechaAdmisionDate.toDateString()) &&
           fechaVisita <= new Date(fechaAltaDate.toDateString())) {
 
-        // Contar visitas por fecha
         visitasPorFecha.set(fechaStr, (visitasPorFecha.get(fechaStr) || 0) + 1);
 
-        // Buscar "Evolución médica diaria" después de esta visita
         const bloqueTexto = textoNormalizado.substring(posicion, posicion + 2000);
 
         for (const patron of patronesEvolDiaria) {
@@ -287,8 +317,6 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
     console.log(`[DEBUG]   ${fecha}: ${cantidad} visita(s) - ${tieneEvolucion ? '✓ CON' : '✗ SIN'} evolución médica diaria`);
   }
 
-  // FASE 2: Generar errores solo para fechas que NO tienen "Evolución médica diaria"
-  // Procesamos cada fecha única solo una vez
   const fechasYaProcesadas = new Set<string>();
 
   for (const [fechaStr] of visitasPorFecha) {
@@ -303,7 +331,6 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
       const mesPad = mes.padStart(2, '0');
       const fechaVisita = new Date(`${anio}-${mesPad}-${diaPad}`);
 
-      // Si esta fecha NO tiene evolución médica diaria, verificar si necesita reportar error
       if (!diasConEvolucion.has(fechaStr)) {
         if (fechaVisita.getTime() === new Date(fechaAdmisionDate.toDateString()).getTime()) {
           console.log(`[DEBUG] ℹ️  ${fechaStr}: Día de admisión - No se requiere evolución médica diaria`);
@@ -939,6 +966,9 @@ function generarComunicacionesOptimizadas(
   return comunicaciones;
 }
 
+/* =========================
+   Handler principal
+   ========================= */
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -964,7 +994,8 @@ Deno.serve(async (req: Request) => {
 
     const { ingreso, alta } = extractIngresoAlta(pdfText);
 
-    if (!ingreso) {
+    // Validación fuerte de ingreso
+    if (!ingreso || Number.isNaN(ingreso.getTime())) {
       return new Response(
         JSON.stringify({ error: 'No se pudo extraer la fecha de ingreso (dato obligatorio)' }),
         {
@@ -974,9 +1005,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Si no hay fecha de alta, usar la fecha actual (paciente aún internado)
-    const fechaAlta = alta || new Date();
-    const pacienteInternado = !alta;
+    // Si no hay alta válida, usar fecha actual (paciente aún internado)
+    const altaValida = !!(alta && !Number.isNaN(alta.getTime()));
+    const fechaAlta = altaValida ? alta! : new Date();
+    const pacienteInternado = !altaValida;
 
     console.log(`[INFO] Paciente ${pacienteInternado ? 'AÚN INTERNADO' : 'con alta registrada'}`);
     if (pacienteInternado) {
@@ -984,15 +1016,17 @@ Deno.serve(async (req: Request) => {
     }
 
     const datosPaciente = extraerDatosPaciente(pdfText);
-    const { errores: erroresEvolucion, evolucionesRepetidas, advertencias } = extraerEvolucionesMejorado(pdfText, ingreso, fechaAlta);
+    const { errores: erroresEvolucion, evolucionesRepetidas, advertencias } =
+      extraerEvolucionesMejorado(pdfText, ingreso, fechaAlta);
 
-    // Solo verificar alta y epicrisis si el paciente ya fue dado de alta
+    // Solo verificar alta y epicrisis si el paciente YA fue dado de alta
     const erroresAltaMedica = pacienteInternado ? [] : verificarAltaMedica(pdfText);
-    const erroresEpicrisis = pacienteInternado ? [] : verificarEpicrisis(pdfText);
+    const erroresEpicrisis   = pacienteInternado ? [] : verificarEpicrisis(pdfText);
 
     if (pacienteInternado) {
       console.log('[INFO] Paciente internado - No se valida alta médica ni epicrisis');
     }
+
     const doctores = extraerDoctores(pdfText);
     const resultadosFoja = analizarFojaQuirurgica(pdfText);
 
@@ -1013,13 +1047,16 @@ Deno.serve(async (req: Request) => {
       resultadosFoja
     );
 
-    const totalErrores = datosPaciente.errores_admision.length +
-                         erroresEvolucion.length +
-                         resultadosFoja.errores.length +
-                         erroresAltaMedica.length +
-                         erroresEpicrisis.length;
+    const totalErrores =
+      datosPaciente.errores_admision.length +
+      erroresEvolucion.length +
+      resultadosFoja.errores.length +
+      erroresAltaMedica.length +
+      erroresEpicrisis.length;
 
-    const diasHospitalizacion = Math.floor((fechaAlta.getTime() - ingreso.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const diasHospitalizacion = Math.floor(
+      (fechaAlta.getTime() - ingreso.getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
 
     const resultado = {
       nombreArchivo,
@@ -1091,10 +1128,10 @@ Deno.serve(async (req: Request) => {
       }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error procesando PDF:', error);
     return new Response(
-      JSON.stringify({ error: 'Error procesando el archivo PDF', details: error.message }),
+      JSON.stringify({ error: 'Error procesando el archivo PDF', details: error?.message }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
