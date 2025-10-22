@@ -146,6 +146,36 @@ function extractIngresoAlta(text: string): { ingreso: Date | null; alta: Date | 
 }
 
 /* =========================
+   Helpers de días de hospitalización
+   ========================= */
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/**
+ * Reglas:
+ * - Egresado: ingreso incluido, alta EXCLUIDA.
+ * - Internado (sin alta): ingreso incluido, HOY incluido.
+ * - Ingreso y alta el mismo día: 0 días.
+ */
+function diasHospitalizacionCalc(ingreso: Date, alta: Date | null): number {
+  const MS_DIA = 1000 * 60 * 60 * 24;
+  const si = startOfDay(ingreso);
+
+  // Caso egresado: alta válida -> alta EXCLUIDA
+  if (alta && !Number.isNaN(alta.getTime())) {
+    const sa = startOfDay(alta);
+    const diff = Math.floor((sa.getTime() - si.getTime()) / MS_DIA);
+    return Math.max(0, diff); // mismo día => 0
+  }
+
+  // Caso internado: hasta HOY INCLUIDO
+  const hoy = startOfDay(new Date());
+  const diffIncluyendoHoy = Math.floor((hoy.getTime() - si.getTime()) / MS_DIA) + 1;
+  return Math.max(1, diffIncluyendoHoy); // ingresó hoy => 1
+}
+
+/* =========================
    Extracción de datos
    ========================= */
 function extraerDatosPaciente(texto: string): DatosPaciente {
@@ -582,10 +612,8 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
     ];
 
     let indicadoresEncontrados = 0;
-    for (const indicador of indicadoresQuirurgicos) {
-      if (indicador.test(texto)) {
-        indicadoresEncontrados++;
-      }
+    for (const indicador of estosIndicadores(indicadoresQuirurgicos, texto)) {
+      if (indicador) indicadoresEncontrados++;
     }
 
     if (indicadoresEncontrados >= 2) {
@@ -740,6 +768,11 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
   console.log('='.repeat(80) + '\n');
 
   return resultados;
+}
+
+// Pequeña utilidad interna para contar indicadores
+function* estosIndicadores(regs: RegExp[], txt: string) {
+  for (const r of regs) yield r.test(txt);
 }
 
 function generarComunicacionesOptimizadas(
@@ -1054,9 +1087,11 @@ Deno.serve(async (req: Request) => {
       erroresAltaMedica.length +
       erroresEpicrisis.length;
 
-    const diasHospitalizacion = Math.floor(
-      (fechaAlta.getTime() - ingreso.getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1;
+    // NUEVO cálculo de días (según reglas acordadas)
+    const diasHospitalizacion = diasHospitalizacionCalc(
+      ingreso,
+      altaValida ? fechaAlta : null
+    );
 
     const resultado = {
       nombreArchivo,
