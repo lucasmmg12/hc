@@ -1,6 +1,22 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+/* =========================
+   Tipos
+   ========================= */
+type CategoriaEstudio = 'Imagenes' | 'Laboratorio' | 'Procedimientos';
+
+interface Estudio {
+  categoria: CategoriaEstudio;
+  tipo: string;
+  fecha?: string | null;
+  hora?: string | null;
+  lugar?: string | null;
+  resultado?: string | null;
+  informe_presente: boolean;
+  advertencias: string[];
+}
+
 interface ResultadoAuditoria {
   nombreArchivo: string;
   datosPaciente: {
@@ -47,20 +63,34 @@ interface ResultadoAuditoria {
   }>;
   totalErrores: number;
   estado: string;
+
+  // ===== NUEVO: opcionales para Estudios =====
+  estudios?: Estudio[];
+  estudiosConteo?: {
+    total: number;
+    imagenes: number;
+    laboratorio: number;
+    procedimientos: number;
+  };
+  erroresEstudios?: string[];
 }
 
+/* =========================
+   Colores
+   ========================= */
 const GROW_GREEN = [22, 163, 74];
 const GROW_DARK = [31, 41, 55];
 const ERROR_RED = [220, 38, 38];
 const WARNING_YELLOW = [245, 158, 11];
 const LIGHT_GRAY = [249, 250, 251];
 
+/* =========================
+   Util
+   ========================= */
+const fmtBool = (v: boolean) => (v ? 'Sí' : 'No');
+
 export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPDF: boolean = true): Promise<Blob> {
-  const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
-  });
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -78,6 +108,7 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
   };
 
   const addHeaderFooter = (pageNumber: number, totalPages: number) => {
+    // Header
     doc.setFillColor(...GROW_GREEN);
     doc.rect(0, 0, pageWidth, 15, 'F');
 
@@ -92,6 +123,7 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
     doc.setTextColor(255, 255, 255);
     doc.text('Sanatorio Argentino - San Juan', pageWidth - 10, 9, { align: 'right' });
 
+    // Footer
     doc.setFillColor(...GROW_DARK);
     doc.rect(0, pageHeight - 10, pageWidth, 10, 'F');
     doc.setFontSize(8);
@@ -124,6 +156,9 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
     yPos += 15;
   };
 
+  /* =========================
+     Portada
+     ========================= */
   doc.setFillColor(...GROW_GREEN);
   doc.rect(0, yPos, pageWidth, 40, 'F');
 
@@ -154,6 +189,9 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
   doc.text(fileNameText, 60, yPos);
   yPos += 10;
 
+  /* =========================
+     Resumen General
+     ========================= */
   checkPageBreak(30);
   doc.setFillColor(...LIGHT_GRAY);
   doc.roundedRect(10, yPos, pageWidth - 20, 25, 3, 3, 'F');
@@ -171,6 +209,9 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
   doc.text(splitResumen, 12, yPos + 10);
   yPos += 30;
 
+  /* =========================
+     Datos del paciente
+     ========================= */
   addSection('DATOS DEL PACIENTE');
 
   const pacienteData = [
@@ -197,6 +238,9 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
 
+  /* =========================
+     Período de hospitalización
+     ========================= */
   addSection('PERÍODO DE HOSPITALIZACIÓN');
 
   const hospitalizacionData = [
@@ -220,9 +264,12 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
 
+  /* =========================
+     Síntesis del análisis (incluye KPI de Estudios si existen)
+     ========================= */
   addSection('SÍNTESIS DEL ANÁLISIS');
 
-  const sintesisData = [
+  const sintesisData: Array<[string, string]> = [
     ['Errores de admisión', resultado.erroresAdmision.length.toString()],
     ['Errores en evoluciones', resultado.erroresEvolucion.length.toString()],
     ['Evoluciones repetidas', resultado.evolucionesRepetidas.length.toString()],
@@ -232,6 +279,15 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
     ['Errores epicrisis', resultado.erroresEpicrisis.length.toString()],
     ['Comunicaciones generadas', resultado.comunicaciones.length.toString()],
   ];
+
+  if (resultado.estudiosConteo && typeof resultado.estudiosConteo.total === 'number') {
+    sintesisData.push(
+      ['Estudios detectados (total)', String(resultado.estudiosConteo.total)],
+      ['— Imágenes', String(resultado.estudiosConteo.imagenes)],
+      ['— Laboratorio', String(resultado.estudiosConteo.laboratorio)],
+      ['— Procedimientos', String(resultado.estudiosConteo.procedimientos)],
+    );
+  }
 
   autoTable(doc, {
     startY: yPos,
@@ -248,9 +304,12 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
 
+  /* =========================
+     Errores (bloques existentes)
+     ========================= */
   if (resultado.erroresAdmision.length > 0) {
     addSection('ERRORES DE ADMISIÓN', ERROR_RED);
-    resultado.erroresAdmision.forEach((error, idx) => {
+    resultado.erroresAdmision.forEach((error) => {
       checkPageBreak(20);
       doc.setFillColor(254, 226, 226);
       doc.roundedRect(10, yPos, pageWidth - 20, 15, 2, 2, 'F');
@@ -268,7 +327,7 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
 
   if (resultado.erroresEvolucion.length > 0) {
     addSection('ERRORES EN EVOLUCIONES MÉDICAS', ERROR_RED);
-    resultado.erroresEvolucion.forEach((error, idx) => {
+    resultado.erroresEvolucion.forEach((error) => {
       checkPageBreak(25);
       doc.setFillColor(254, 226, 226);
       doc.roundedRect(10, yPos, pageWidth - 20, 20, 2, 2, 'F');
@@ -288,7 +347,7 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
 
   if (resultado.evolucionesRepetidas.length > 0) {
     addSection('EVOLUCIONES REPETIDAS', WARNING_YELLOW);
-    resultado.evolucionesRepetidas.forEach((ev, idx) => {
+    resultado.evolucionesRepetidas.forEach((ev) => {
       checkPageBreak(25);
       doc.setFillColor(254, 243, 199);
       doc.roundedRect(10, yPos, pageWidth - 20, 20, 2, 2, 'F');
@@ -307,7 +366,7 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
 
   if (resultado.advertencias && resultado.advertencias.length > 0) {
     addSection('ADVERTENCIAS', WARNING_YELLOW);
-    resultado.advertencias.forEach((adv, idx) => {
+    resultado.advertencias.forEach((adv) => {
       checkPageBreak(25);
       doc.setFillColor(254, 243, 199);
       doc.roundedRect(10, yPos, pageWidth - 20, 20, 2, 2, 'F');
@@ -320,16 +379,14 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
       doc.text(adv.tipo, 12, yPos + 8);
       const descText = doc.splitTextToSize(adv.descripcion, pageWidth - 24);
       doc.text(descText, 12, yPos + 12);
-      if (adv.fecha) {
-        doc.text(`Fecha: ${adv.fecha}`, 12, yPos + 16);
-      }
+      if (adv.fecha) doc.text(`Fecha: ${adv.fecha}`, 12, yPos + 16);
       yPos += 23;
     });
   }
 
   if (resultado.erroresFoja.length > 0) {
     addSection('ERRORES EN FOJA QUIRÚRGICA', ERROR_RED);
-    resultado.erroresFoja.forEach((error, idx) => {
+    resultado.erroresFoja.forEach((error) => {
       checkPageBreak(15);
       doc.setFillColor(254, 226, 226);
       doc.roundedRect(10, yPos, pageWidth - 20, 12, 2, 2, 'F');
@@ -347,7 +404,7 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
 
   if (resultado.erroresAltaMedica.length > 0) {
     addSection('ERRORES DE ALTA MÉDICA', ERROR_RED);
-    resultado.erroresAltaMedica.forEach((error, idx) => {
+    resultado.erroresAltaMedica.forEach((error) => {
       checkPageBreak(20);
       doc.setFillColor(254, 226, 226);
       doc.roundedRect(10, yPos, pageWidth - 20, 17, 2, 2, 'F');
@@ -367,7 +424,7 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
 
   if (resultado.erroresEpicrisis.length > 0) {
     addSection('ERRORES DE EPICRISIS', ERROR_RED);
-    resultado.erroresEpicrisis.forEach((error, idx) => {
+    resultado.erroresEpicrisis.forEach((error) => {
       checkPageBreak(20);
       doc.setFillColor(254, 226, 226);
       doc.roundedRect(10, yPos, pageWidth - 20, 17, 2, 2, 'F');
@@ -385,6 +442,102 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
     });
   }
 
+  /* =========================
+     NUEVO: Errores de Estudios (si existen)
+     ========================= */
+  if (resultado.erroresEstudios && resultado.erroresEstudios.length > 0) {
+    addSection('ERRORES EN ESTUDIOS', ERROR_RED);
+    resultado.erroresEstudios.forEach((error) => {
+      checkPageBreak(20);
+      doc.setFillColor(254, 226, 226);
+      doc.roundedRect(10, yPos, pageWidth - 20, 17, 2, 2, 'F');
+      doc.setFontSize(8);
+      doc.setTextColor(...ERROR_RED);
+      doc.setFont('helvetica', 'bold');
+      doc.text('CRÍTICO', 12, yPos + 4);
+      doc.setTextColor(...GROW_DARK);
+      doc.setFont('helvetica', 'normal');
+      const errorText = doc.splitTextToSize(error, pageWidth - 24);
+      doc.text(errorText, 12, yPos + 8);
+      doc.setFontSize(7);
+      doc.text('Impacto: si no hay informe/resultado, OSDE puede debitar el estudio.', 12, yPos + 13);
+      yPos += 20;
+    });
+  }
+
+  /* =========================
+     NUEVO: Estudios realizados (tabla + resultados)
+     ========================= */
+  if (resultado.estudios && resultado.estudios.length > 0) {
+    addSection('ESTUDIOS REALIZADOS');
+
+    // Tabla con metadatos de estudios
+    const estudiosBody = resultado.estudios.map((e) => {
+      const fechaHora = [e.fecha || '—', e.hora || ''].join(' ').trim();
+      return [
+        e.categoria || '—',
+        e.tipo || '—',
+        fechaHora || '—',
+        e.lugar || '—',
+        e.informe_presente ? 'Sí' : 'No',
+        (e.advertencias?.length ? e.advertencias.join(', ') : '—'),
+      ];
+    });
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [['Categoría', 'Tipo', 'Fecha/Hora', 'Lugar', 'Informe', 'Advertencias']],
+      body: estudiosBody,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [243, 244, 246], textColor: GROW_DARK as any, fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 28 },
+        1: { cellWidth: 50 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 30 },
+        4: { cellWidth: 18, halign: 'center' },
+        5: { cellWidth: 'auto' },
+      },
+      margin: { left: 10, right: 10 },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 8;
+
+    // Bloque de Resultados / Impresiones (solo para los que traen texto)
+    const conResultado = resultado.estudios.filter((e) => e.resultado && e.resultado.trim().length > 0);
+    if (conResultado.length > 0) {
+      checkPageBreak(12);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Resultados / Impresiones:', 10, yPos);
+      yPos += 6;
+
+      conResultado.forEach((e, idx) => {
+        const header = `• ${e.tipo} (${e.categoria}${e.fecha ? ` - ${e.fecha}` : ''}${e.hora ? ` ${e.hora}` : ''})`;
+        const headerLines = doc.splitTextToSize(header, pageWidth - 24);
+        const resultLines = doc.splitTextToSize(e.resultado!, pageWidth - 24);
+
+        // estimar espacio
+        const needed = 6 + headerLines.length * 4 + resultLines.length * 4 + 3;
+        checkPageBreak(needed);
+
+        doc.setFontSize(8.5);
+        doc.setFont('helvetica', 'bold');
+        doc.text(headerLines, 12, yPos);
+        yPos += headerLines.length * 4 + 2;
+
+        doc.setFont('helvetica', 'normal');
+        doc.text(resultLines, 12, yPos);
+        yPos += resultLines.length * 4 + 3;
+      });
+      yPos += 2;
+    }
+  }
+
+  /* =========================
+     Bloque "OK" si no hubo errores
+     ========================= */
   if (resultado.totalErrores === 0) {
     checkPageBreak(20);
     doc.setFillColor(220, 252, 231);
@@ -394,10 +547,14 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
     doc.setFont('helvetica', 'bold');
     doc.text('No se detectaron errores', 12, yPos + 6);
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...GROW_DARK);
     doc.text('La historia clínica está completa y lista para el envío a OSDE', 12, yPos + 11);
     yPos += 18;
   }
 
+  /* =========================
+     Comunicaciones generadas
+     ========================= */
   if (resultado.comunicaciones.length > 0) {
     addSection('COMUNICACIONES GENERADAS');
     resultado.comunicaciones.forEach((com, idx) => {
@@ -433,13 +590,13 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
       yPos += 48;
 
       if (com.errores.length > 0) {
-        checkPageBreak(15 + (com.errores.length * 5));
+        checkPageBreak(15 + com.errores.length * 5);
         doc.setFontSize(8);
         doc.setFont('helvetica', 'bold');
         doc.text('Errores asociados:', 12, yPos);
         yPos += 4;
         doc.setFont('helvetica', 'normal');
-        com.errores.forEach((error, errorIdx) => {
+        com.errores.forEach((error) => {
           const errorLines = doc.splitTextToSize(`• ${error}`, pageWidth - 26);
           doc.text(errorLines, 14, yPos);
           yPos += errorLines.length * 4;
@@ -449,13 +606,16 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
     });
   }
 
+  /* =========================
+     Verificaciones adicionales (foja)
+     ========================= */
   if (resultado.resultadosFoja) {
     addSection('VERIFICACIONES ADICIONALES');
 
     const verificacionesData = [
       ['Alta médica', resultado.erroresAltaMedica.length > 0 ? 'Faltante' : 'Presente y correcta'],
       ['Epicrisis', resultado.erroresEpicrisis.length > 0 ? 'Faltante' : 'Detectada correctamente'],
-      ['Foja quirúrgica', resultado.erroresFoja.some(e => e.includes('foja')) ? 'No encontrada' : 'Completa'],
+      ['Foja quirúrgica', resultado.erroresFoja.some((e) => e.includes('foja')) ? 'No encontrada' : 'Completa'],
       [
         'Bisturí Armónico',
         resultado.resultadosFoja.bisturi_armonico === 'SI'
@@ -496,6 +656,9 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
     }
   }
 
+  /* =========================
+     Conclusión final
+     ========================= */
   addSection('CONCLUSIÓN FINAL', GROW_DARK);
 
   checkPageBreak(35);
@@ -523,17 +686,23 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
   const estado = resultado.pacienteInternado ? 'Paciente Internado' : resultado.estado;
   doc.text(estado, 45, yPos + 18);
 
+  /* =========================
+     Header/Footer en todas las páginas
+     ========================= */
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     addHeaderFooter(i, totalPages);
   }
 
-  const fileName = `Auditoria_${resultado.datosPaciente.nombre || 'Paciente'}_${new Date().toLocaleDateString('es-AR').replace(/\//g, '-')}.pdf`;
+  /* =========================
+     Salida
+     ========================= */
+  const fileName = `Auditoria_${resultado.datosPaciente.nombre || 'Paciente'}_${new Date()
+    .toLocaleDateString('es-AR')
+    .replace(/\//g, '-')}.pdf`;
 
-  if (downloadPDF) {
-    doc.save(fileName);
-  }
+  if (downloadPDF) doc.save(fileName);
 
   return doc.output('blob');
 }
