@@ -1,8 +1,21 @@
 import { useState, useEffect } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle, FileText, Calendar, User, MessageSquare, Send, Loader2, CheckCircle2, Download } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle, FileText, Calendar, User, MessageSquare, Send, Loader2, CheckCircle2, Download, Scan, TestTube, ClipboardList } from 'lucide-react';
 import { enviarMensajeWhatsApp, verificarMensajeEnviado } from '../services/whatsappService';
 import { generateAuditPDF } from '../utils/pdfGenerator';
 import { uploadPDFToStorage, updateAuditoriaPDFUrl } from '../services/pdfStorageService';
+
+type CategoriaEstudio = 'Imagenes' | 'Laboratorio' | 'Procedimientos';
+
+interface Estudio {
+  categoria: CategoriaEstudio;
+  tipo: string;
+  fecha?: string | null;
+  hora?: string | null;
+  lugar?: string | null;
+  resultado?: string | null;
+  informe_presente: boolean;
+  advertencias: string[];
+}
 
 interface ResultadoAuditoria {
   nombreArchivo: string;
@@ -39,6 +52,14 @@ interface ResultadoAuditoria {
     cirujanos: Array<{ nombre: string; matricula?: string }>;
     otros: Array<{ nombre: string; matricula?: string }>;
   };
+  estudios: Estudio[];
+  estudiosConteo: {
+    total: number;
+    imagenes: number;
+    laboratorio: number;
+    procedimientos: number;
+  };
+  erroresEstudios: string[];
   comunicaciones: Array<{
     sector: string;
     responsable: string;
@@ -63,6 +84,33 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
   const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
   const [, setVerificandoEnviados] = useState(false);
   const [generandoPDF, setGenerandoPDF] = useState(false);
+
+  const categoriaLabels: Record<CategoriaEstudio, string> = {
+    Imagenes: 'Estudios de Imágenes',
+    Laboratorio: 'Estudios de Laboratorio',
+    Procedimientos: 'Procedimientos / Prácticas',
+  };
+
+  const categoriaIconos: Record<CategoriaEstudio, JSX.Element> = {
+    Imagenes: <Scan className="w-5 h-5 text-blue-600" />,
+    Laboratorio: <TestTube className="w-5 h-5 text-purple-600" />,
+    Procedimientos: <ClipboardList className="w-5 h-5 text-emerald-600" />,
+  };
+
+  const estudiosPorCategoria = resultado.estudios.reduce(
+    (acc, estudio) => {
+      acc[estudio.categoria].push(estudio);
+      return acc;
+    },
+    {
+      Imagenes: [] as Estudio[],
+      Laboratorio: [] as Estudio[],
+      Procedimientos: [] as Estudio[],
+    } satisfies Record<CategoriaEstudio, Estudio[]>
+  );
+
+  const totalEstudios = resultado.estudiosConteo?.total ?? resultado.estudios.length;
+  const estudiosConObservaciones = resultado.erroresEstudios.length;
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -329,7 +377,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
           <h2 className="text-2xl font-bold text-gray-900">Síntesis del Análisis</h2>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid md:grid-cols-4 gap-4">
           <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
             <p className="text-sm text-gray-600">Errores de admisión</p>
             <p className="text-2xl font-bold text-gray-900">{resultado.erroresAdmision.length}</p>
@@ -362,8 +410,130 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
             <p className="text-sm text-green-700">Comunicaciones generadas</p>
             <p className="text-2xl font-bold text-green-900">{resultado.comunicaciones.length}</p>
           </div>
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-700">Estudios detectados</p>
+            <p className="text-2xl font-bold text-blue-900">{totalEstudios}</p>
+          </div>
+          <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <p className="text-sm text-blue-700">Estudios con observaciones</p>
+            <p className="text-2xl font-bold text-blue-900">{estudiosConObservaciones}</p>
+          </div>
         </div>
       </div>
+
+      {resultado.estudios.length > 0 ? (
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <Scan className="w-8 h-8 text-blue-600" />
+            <h2 className="text-2xl font-bold text-gray-900">Estudios Detectados</h2>
+          </div>
+
+          <div className="grid md:grid-cols-4 gap-4 mb-6">
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <p className="text-sm text-blue-700">Total de estudios</p>
+              <p className="text-2xl font-bold text-blue-900">{totalEstudios}</p>
+            </div>
+            <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+              <p className="text-sm text-indigo-700">Imágenes</p>
+              <p className="text-2xl font-bold text-indigo-900">{resultado.estudiosConteo.imagenes}</p>
+            </div>
+            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+              <p className="text-sm text-purple-700">Laboratorio</p>
+              <p className="text-2xl font-bold text-purple-900">{resultado.estudiosConteo.laboratorio}</p>
+            </div>
+            <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+              <p className="text-sm text-emerald-700">Procedimientos</p>
+              <p className="text-2xl font-bold text-emerald-900">{resultado.estudiosConteo.procedimientos}</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {(Object.keys(categoriaLabels) as CategoriaEstudio[]).map(categoria => {
+              const estudiosCategoria = estudiosPorCategoria[categoria];
+              if (estudiosCategoria.length === 0) return null;
+
+              return (
+                <div key={categoria} className="p-6 bg-gray-50 rounded-xl border border-gray-200">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-3">
+                      <span className="p-2 bg-white rounded-full border border-gray-200 shadow-sm">
+                        {categoriaIconos[categoria]}
+                      </span>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900">{categoriaLabels[categoria]}</h3>
+                        <p className="text-sm text-gray-600">
+                          {estudiosCategoria.length} estudio{estudiosCategoria.length !== 1 ? 's' : ''} detectado{estudiosCategoria.length !== 1 ? 's' : ''}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-4">
+                    {estudiosCategoria.map((estudio, idx) => (
+                      <div
+                        key={`${categoria}-${idx}`}
+                        className="p-4 bg-white rounded-lg border border-gray-200 shadow-sm space-y-3"
+                      >
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <p className="text-base font-semibold text-gray-900">{estudio.tipo}</p>
+                          <span
+                            className={`text-sm font-semibold ${
+                              estudio.informe_presente ? 'text-green-600' : 'text-red-600'
+                            }`}
+                          >
+                            {estudio.informe_presente ? 'Informe presente' : 'Sin informe'}
+                          </span>
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-2 text-sm text-gray-600">
+                          <p>
+                            <strong>Fecha:</strong>{' '}
+                            {estudio.fecha?.trim() ? estudio.fecha : 'No registrada'}
+                          </p>
+                          <p>
+                            <strong>Hora:</strong>{' '}
+                            {estudio.hora?.trim() ? estudio.hora : 'No registrada'}
+                          </p>
+                          <p className="sm:col-span-2">
+                            <strong>Lugar:</strong>{' '}
+                            {estudio.lugar?.trim() ? estudio.lugar : 'No registrado'}
+                          </p>
+                        </div>
+
+                        {estudio.resultado?.trim() && (
+                          <div className="text-sm text-gray-700">
+                            <p className="font-semibold text-gray-800">Resultado / impresión:</p>
+                            <p className="italic">{estudio.resultado}</p>
+                          </div>
+                        )}
+
+                        {estudio.advertencias.length > 0 && (
+                          <div className="text-sm text-red-600">
+                            <p className="font-semibold">Observaciones:</p>
+                            <ul className="list-disc list-inside space-y-1">
+                              {estudio.advertencias.map((adv, advIdx) => (
+                                <li key={advIdx}>{adv}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
+          <div className="flex items-center gap-3 mb-3">
+            <Scan className="w-8 h-8 text-blue-600" />
+            <h2 className="text-2xl font-bold text-gray-900">Estudios Detectados</h2>
+          </div>
+          <p className="text-gray-600">No se identificaron estudios en el documento analizado.</p>
+        </div>
+      )}
 
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
         <div className="flex items-center gap-3 mb-6">
@@ -503,6 +673,21 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
                   <p className="text-sm text-gray-600">
                     <strong>Sector responsable:</strong> Cirugía
                   </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {resultado.erroresEstudios.length > 0 && (
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 bg-blue-600 rounded-full"></span>
+                Observaciones en Estudios Complementarios
+              </h3>
+              {resultado.erroresEstudios.map((error, idx) => (
+                <div key={idx} className="ml-4 p-4 bg-blue-50 border-l-4 border-blue-500 rounded mb-2">
+                  <p className="text-sm font-semibold text-blue-900 mb-1">REQUIERE REVISIÓN</p>
+                  <p className="text-gray-700">{error}</p>
                 </div>
               ))}
             </div>
