@@ -5,6 +5,19 @@ import { InformeAuditoria } from '../components/InformeAuditoria';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
+type CategoriaEstudio = 'Imagenes' | 'Laboratorio' | 'Procedimientos';
+
+interface Estudio {
+  categoria: CategoriaEstudio;
+  tipo: string;
+  fecha?: string | null;
+  hora?: string | null;
+  lugar?: string | null;
+  resultado?: string | null;
+  informe_presente: boolean;
+  advertencias: string[];
+}
+
 interface ResultadoAuditoria {
   nombreArchivo: string;
   datosPaciente: {
@@ -39,6 +52,14 @@ interface ResultadoAuditoria {
     cirujanos: Array<{ nombre: string; matricula?: string }>;
     otros: Array<{ nombre: string; matricula?: string }>;
   };
+  estudios: Estudio[];
+  estudiosConteo: {
+    total: number;
+    imagenes: number;
+    laboratorio: number;
+    procedimientos: number;
+  };
+  erroresEstudios: string[];
   comunicaciones: Array<{
     sector: string;
     responsable: string;

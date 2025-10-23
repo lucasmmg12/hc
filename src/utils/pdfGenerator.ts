@@ -1,6 +1,19 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+type CategoriaEstudio = 'Imagenes' | 'Laboratorio' | 'Procedimientos';
+
+interface Estudio {
+  categoria: CategoriaEstudio;
+  tipo: string;
+  fecha?: string | null;
+  hora?: string | null;
+  lugar?: string | null;
+  resultado?: string | null;
+  informe_presente: boolean;
+  advertencias: string[];
+}
+
 interface ResultadoAuditoria {
   nombreArchivo: string;
   datosPaciente: {
@@ -36,6 +49,14 @@ interface ResultadoAuditoria {
     cirujanos: Array<{ nombre: string; matricula?: string }>;
     otros: Array<{ nombre: string; matricula?: string }>;
   };
+  estudios: Estudio[];
+  estudiosConteo: {
+    total: number;
+    imagenes: number;
+    laboratorio: number;
+    procedimientos: number;
+  };
+  erroresEstudios: string[];
   comunicaciones: Array<{
     sector: string;
     responsable: string;
@@ -49,11 +70,11 @@ interface ResultadoAuditoria {
   estado: string;
 }
 
-const GROW_GREEN = [22, 163, 74];
-const GROW_DARK = [31, 41, 55];
-const ERROR_RED = [220, 38, 38];
-const WARNING_YELLOW = [245, 158, 11];
-const LIGHT_GRAY = [249, 250, 251];
+const GROW_GREEN: [number, number, number] = [22, 163, 74];
+const GROW_DARK: [number, number, number] = [31, 41, 55];
+const ERROR_RED: [number, number, number] = [220, 38, 38];
+const WARNING_YELLOW: [number, number, number] = [245, 158, 11];
+const LIGHT_GRAY: [number, number, number] = [249, 250, 251];
 
 export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPDF: boolean = true): Promise<Blob> {
   const doc = new jsPDF({
@@ -230,6 +251,8 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
     ['Errores foja quirúrgica', resultado.erroresFoja.length.toString()],
     ['Errores alta médica', resultado.erroresAltaMedica.length.toString()],
     ['Errores epicrisis', resultado.erroresEpicrisis.length.toString()],
+    ['Estudios detectados', (resultado.estudiosConteo?.total ?? resultado.estudios.length).toString()],
+    ['Estudios con observaciones', resultado.erroresEstudios.length.toString()],
     ['Comunicaciones generadas', resultado.comunicaciones.length.toString()],
   ];
 
@@ -247,6 +270,108 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
   });
 
   yPos = (doc as any).lastAutoTable.finalY + 10;
+
+  if (resultado.estudios.length > 0) {
+    addSection('ESTUDIOS DETECTADOS');
+
+    const conteoEstudiosData = [
+      ['Total de estudios', (resultado.estudiosConteo?.total ?? resultado.estudios.length).toString()],
+      ['Imágenes', resultado.estudiosConteo.imagenes.toString()],
+      ['Laboratorio', resultado.estudiosConteo.laboratorio.toString()],
+      ['Procedimientos', resultado.estudiosConteo.procedimientos.toString()],
+      ['Estudios con observaciones', resultado.erroresEstudios.length.toString()],
+    ];
+
+    autoTable(doc, {
+      startY: yPos,
+      head: [],
+      body: conteoEstudiosData,
+      theme: 'grid',
+      styles: { fontSize: 9, cellPadding: 3 },
+      columnStyles: {
+        0: { fontStyle: 'bold', cellWidth: 70 },
+        1: { cellWidth: 'auto', halign: 'center' },
+      },
+      margin: { left: 10, right: 10 },
+    });
+
+    yPos = (doc as any).lastAutoTable.finalY + 8;
+
+    const categoriaLabels: Record<CategoriaEstudio, string> = {
+      Imagenes: 'Estudios de Imágenes',
+      Laboratorio: 'Estudios de Laboratorio',
+      Procedimientos: 'Procedimientos / Prácticas',
+    };
+
+    (['Imagenes', 'Laboratorio', 'Procedimientos'] as CategoriaEstudio[]).forEach(categoria => {
+      const estudiosCategoria = resultado.estudios.filter(estudio => estudio.categoria === categoria);
+      if (estudiosCategoria.length === 0) {
+        return;
+      }
+
+      checkPageBreak(20);
+      doc.setFontSize(10);
+      doc.setTextColor(...GROW_DARK);
+      doc.setFont('helvetica', 'bold');
+      doc.text(categoriaLabels[categoria], 12, yPos);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(
+        `${estudiosCategoria.length} estudio${estudiosCategoria.length > 1 ? 's' : ''} detectado${
+          estudiosCategoria.length > 1 ? 's' : ''
+        }`,
+        pageWidth - 12,
+        yPos,
+        { align: 'right' }
+      );
+      yPos += 6;
+
+      autoTable(doc, {
+        startY: yPos,
+        head: [['Tipo', 'Fecha', 'Hora', 'Lugar', 'Informe', 'Observaciones']],
+        body: estudiosCategoria.map(estudio => {
+          const observaciones: string[] = [];
+          if (estudio.resultado?.trim()) {
+            observaciones.push(`Resultado: ${estudio.resultado}`);
+          }
+          if (estudio.advertencias.length > 0) {
+            observaciones.push(`Advertencias: ${estudio.advertencias.join('; ')}`);
+          }
+
+          return [
+            estudio.tipo,
+            estudio.fecha?.trim() || 'No registrada',
+            estudio.hora?.trim() || 'No registrada',
+            estudio.lugar?.trim() || 'No registrado',
+            estudio.informe_presente ? 'Informe presente' : 'Sin informe',
+            observaciones.length > 0 ? observaciones.join('\n') : 'Sin observaciones adicionales',
+          ];
+        }),
+        theme: 'striped',
+        styles: { fontSize: 7, cellPadding: 2, valign: 'middle' },
+        headStyles: { fillColor: LIGHT_GRAY, textColor: GROW_DARK, fontStyle: 'bold' },
+        columnStyles: {
+          0: { cellWidth: 45 },
+          1: { cellWidth: 22 },
+          2: { cellWidth: 22 },
+          3: { cellWidth: 35 },
+          4: { cellWidth: 28 },
+          5: { cellWidth: 'auto' },
+        },
+        margin: { left: 10, right: 10 },
+      });
+
+      yPos = (doc as any).lastAutoTable.finalY + 10;
+    });
+  } else {
+    addSection('ESTUDIOS DETECTADOS');
+    checkPageBreak(15);
+    doc.setFontSize(9);
+    doc.setTextColor(...GROW_DARK);
+    doc.setFont('helvetica', 'normal');
+    doc.text('No se identificaron estudios en el documento analizado.', 12, yPos);
+    yPos += 15;
+  }
 
   if (resultado.erroresAdmision.length > 0) {
     addSection('ERRORES DE ADMISIÓN', ERROR_RED);
@@ -382,6 +507,24 @@ export async function generateAuditPDF(resultado: ResultadoAuditoria, downloadPD
       doc.setFontSize(7);
       doc.text('Impacto: Impide el cierre correcto de la internación.', 12, yPos + 13);
       yPos += 20;
+    });
+  }
+
+  if (resultado.erroresEstudios.length > 0) {
+    addSection('OBSERVACIONES EN ESTUDIOS COMPLEMENTARIOS', WARNING_YELLOW);
+    resultado.erroresEstudios.forEach(error => {
+      checkPageBreak(18);
+      doc.setFillColor(219, 234, 254);
+      doc.roundedRect(10, yPos, pageWidth - 20, 15, 2, 2, 'F');
+      doc.setFontSize(8);
+      doc.setTextColor(37, 99, 235);
+      doc.setFont('helvetica', 'bold');
+      doc.text('REQUIERE REVISIÓN', 12, yPos + 4);
+      doc.setTextColor(...GROW_DARK);
+      doc.setFont('helvetica', 'normal');
+      const errorText = doc.splitTextToSize(error, pageWidth - 24);
+      doc.text(errorText, 12, yPos + 8);
+      yPos += 18;
     });
   }
 
