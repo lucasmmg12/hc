@@ -773,3 +773,380 @@ function generarComunicacionesOptimizadas(
 
   if (erroresEvolucion.length > 0) {
     const set = new Set<string>();
+    const residentes = doctores.residentes.filter((r) => {
+      if (set.has(r.nombre)) return false;
+      set.add(r.nombre);
+      return true;
+    });
+    const nombres =
+      residentes.length > 0
+        ? residentes.map((r) => `Dr/a ${r.nombre}`).join(", ")
+        : "Equipo de Residentes";
+    comunicaciones.push({
+      sector: "Residentes",
+      responsable: nombres,
+      motivo: "Problemas en evoluciones médicas diarias",
+      urgencia: "ALTA",
+      errores: erroresEvolucion,
+      mensaje:
+        "Se detectaron días sin evolución médica diaria. Revisar y completar.",
+    });
+  }
+
+  if (advertencias.length > 0) {
+    comunicaciones.push({
+      sector: "Residentes",
+      responsable: "Equipo de Residentes",
+      motivo: "Advertencias sobre evoluciones médicas",
+      urgencia: "MEDIA",
+      errores: advertencias.map((a) => a.descripcion),
+      mensaje:
+        "Se detectaron advertencias relacionadas con evoluciones. Revisar.",
+    });
+  }
+
+  const faltaAlta = erroresAltaMedica.some((e) => /alta/i.test(e));
+  if (faltaAlta) {
+    const set = new Set<string>();
+    const cir = doctores.cirujanos.filter((c) => {
+      if (set.has(c.nombre)) return false;
+      set.add(c.nombre);
+      return true;
+    });
+    const nombres =
+      cir.length > 0 ? cir.map((c) => `Dr/a ${c.nombre}`).join(", ") : "Cirujano Responsable";
+    comunicaciones.push({
+      sector: "Cirugía",
+      responsable: nombres,
+      motivo: "Falta registro de alta médica",
+      urgencia: "CRÍTICA",
+      errores: erroresAltaMedica.filter((e) => /alta/i.test(e)),
+      mensaje:
+        "Se detectó ausencia de alta médica. Completar antes del envío a OSDE.",
+    });
+  }
+
+  if (erroresEpicrisis.length > 0) {
+    const set = new Set<string>();
+    const cir = doctores.cirujanos.filter((c) => {
+      if (set.has(c.nombre)) return false;
+      set.add(c.nombre);
+      return true;
+    });
+    const nombres =
+      cir.length > 0 ? cir.map((c) => `Dr/a ${c.nombre}`).join(", ") : "Cirujano Responsable";
+    comunicaciones.push({
+      sector: "Cirugía",
+      responsable: nombres,
+      motivo: "Falta epicrisis (resumen de alta)",
+      urgencia: "CRÍTICA",
+      errores: erroresEpicrisis,
+      mensaje: "Se detectó ausencia de epicrisis. Completar.",
+    });
+  }
+
+  if (erroresFoja.length > 0 || resultadosFoja.errores.length > 0) {
+    const set = new Set<string>();
+    const cir = doctores.cirujanos.filter((c) => {
+      if (set.has(c.nombre)) return false;
+      set.add(c.nombre);
+      return true;
+    });
+    const nombres =
+      cir.length > 0 ? cir.map((c) => `Dr/a ${c.nombre}`).join(", ") : "Cirujano Responsable";
+    const errs = [...erroresFoja, ...resultadosFoja.errores];
+    comunicaciones.push({
+      sector: "Cirugía",
+      responsable: nombres,
+      motivo: "Problemas en foja quirúrgica",
+      urgencia: "ALTA",
+      errores: errs,
+      mensaje: "Se detectaron inconsistencias en la foja quirúrgica. Completar.",
+    });
+  }
+
+  if (resultadosFoja.bisturi_armonico === "SI") {
+    const set = new Set<string>();
+    const cir = doctores.cirujanos.filter((c) => {
+      if (set.has(c.nombre)) return false;
+      set.add(c.nombre);
+      return true;
+    });
+    const nombres =
+      cir.length > 0 ? cir.map((c) => `Dr/a ${c.nombre}`).join(", ") : "Cirujano Responsable";
+    comunicaciones.push({
+      sector: "Cirugía",
+      responsable: nombres,
+      motivo: "Uso de bisturí armónico - Requiere autorización especial",
+      urgencia: "CRÍTICA",
+      errores: ["Se utilizó bisturí armónico"],
+      mensaje:
+        "Se detectó uso de BISTURÍ ARMÓNICO. Verificar autorización de OSDE previa a facturación.",
+    });
+  }
+
+  // Estudios sin informe
+  const sinInforme = estudios.filter((e) => !e.informe_presente);
+  if (sinInforme.length > 0) {
+    const list = (cat: CategoriaEstudio) =>
+      sinInforme
+        .filter((e) => e.categoria === cat)
+        .map((e) => `${e.tipo}${e.fecha ? ` (${e.fecha})` : ""}`)
+        .join("; ");
+
+    if (sinInforme.some((e) => e.categoria === "Imagenes")) {
+      comunicaciones.push({
+        sector: "Diagnóstico por Imágenes",
+        responsable: "Jefe/a de Servicio",
+        motivo: "Estudios de imágenes sin informe",
+        urgencia: "ALTA",
+        errores: sinInforme
+          .filter((e) => e.categoria === "Imagenes")
+          .map(
+            (e) => `[Imagenes] ${e.tipo}${e.fecha ? ` (${e.fecha})` : ""}`
+          ),
+        mensaje: `Faltan informes en: ${list("Imagenes")}. Adjuntar antes del envío a OSDE.`,
+      });
+    }
+    if (sinInforme.some((e) => e.categoria === "Laboratorio")) {
+      comunicaciones.push({
+        sector: "Laboratorio",
+        responsable: "Jefe/a de Laboratorio",
+        motivo: "Estudios de laboratorio sin resultado/informe",
+        urgencia: "MEDIA",
+        errores: sinInforme
+          .filter((e) => e.categoria === "Laboratorio")
+          .map(
+            (e) => `[Laboratorio] ${e.tipo}${e.fecha ? ` (${e.fecha})` : ""}`
+          ),
+        mensaje: `Faltan resultados claros en: ${list(
+          "Laboratorio"
+        )}. Adjuntar reporte normalizado.`,
+      });
+    }
+    if (sinInforme.some((e) => e.categoria === "Procedimientos")) {
+      comunicaciones.push({
+        sector: "Endoscopía / Procedimientos",
+        responsable: "Responsable de Procedimientos",
+        motivo: "Procedimientos sin informe",
+        urgencia: "ALTA",
+        errores: sinInforme
+          .filter((e) => e.categoria === "Procedimientos")
+          .map(
+            (e) =>
+              `[Procedimientos] ${e.tipo}${e.fecha ? ` (${e.fecha})` : ""}`
+          ),
+        mensaje:
+          "Faltan informes y conclusiones de procedimientos. Cargar documentación.",
+      });
+    }
+  }
+
+  if (erroresEstudios.length > 0) {
+    comunicaciones.push({
+      sector: "Coordinación de Historias Clínicas",
+      responsable: "Equipo Coordinación",
+      motivo: "Normalización de estudios",
+      urgencia: "MEDIA",
+      errores: erroresEstudios,
+      mensaje:
+        "Se detectaron estudios sin informe o sin fecha. Normalizar documentación para auditoría externa.",
+    });
+  }
+
+  return comunicaciones;
+}
+
+/* =========================
+   Handler principal
+   ========================= */
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers: corsHeaders });
+  }
+
+  try {
+    const formData = await req.formData();
+    const pdfText = formData.get("pdfText") as string;
+    const nombreArchivo = formData.get("nombreArchivo") as string;
+
+    if (!pdfText || !nombreArchivo) {
+      return new Response(
+        JSON.stringify({ error: "Faltan datos requeridos" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { ingreso, alta } = extractIngresoAlta(pdfText);
+
+    if (!ingreso || Number.isNaN(ingreso.getTime())) {
+      return new Response(
+        JSON.stringify({
+          error: "No se pudo extraer la fecha de ingreso (dato obligatorio)",
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const altaValida = !!(alta && !Number.isNaN(alta.getTime()));
+    const fechaAlta = altaValida ? alta! : new Date();
+    const pacienteInternado = !altaValida;
+
+    const datosPaciente = extraerDatosPaciente(pdfText);
+
+    const {
+      errores: erroresEvolucion,
+      evolucionesRepetidas,
+      advertencias,
+    } = extraerEvolucionesMejorado(pdfText, ingreso, fechaAlta);
+
+    // ✅ Corrección: si está internado NO marcamos "ok", explicitamos "No aplica"
+    let erroresAltaMedica: string[] = [];
+    let erroresEpicrisis: string[] = [];
+    if (pacienteInternado) {
+      erroresAltaMedica = ["⚠️ No aplica: paciente internado (sin alta registrada)"];
+      erroresEpicrisis = ["⚠️ No aplica: paciente internado (sin alta registrada)"];
+    } else {
+      erroresAltaMedica = verificarAltaMedica(pdfText);
+      erroresEpicrisis = verificarEpicrisis(pdfText);
+    }
+
+    const doctores = extraerDoctores(pdfText);
+    const resultadosFoja = analizarFojaQuirurgica(pdfText);
+
+    const erroresEquipoUnico = validarEquipoQuirurgicoUnico(resultadosFoja);
+    if (erroresEquipoUnico.length > 0)
+      resultadosFoja.errores.push(...erroresEquipoUnico);
+
+    // Estudios
+    const {
+      estudios,
+      erroresEstudios,
+      conteo: estudiosConteo,
+    } = extraerEstudios(pdfText);
+
+    const comunicaciones = generarComunicacionesOptimizadas(
+      erroresEvolucion,
+      advertencias,
+      erroresAltaMedica,
+      erroresEpicrisis,
+      datosPaciente.errores_admision,
+      resultadosFoja.errores,
+      doctores,
+      resultadosFoja,
+      estudios,
+      erroresEstudios
+    );
+
+    const totalErrores =
+      datosPaciente.errores_admision.length +
+      erroresEvolucion.length +
+      resultadosFoja.errores.length +
+      (pacienteInternado ? 0 : erroresAltaMedica.length) + // no penalizamos "no aplica"
+      (pacienteInternado ? 0 : erroresEpicrisis.length) +
+      erroresEstudios.length;
+
+    const diasHospitalizacion = diasHospitalizacionCalc(
+      ingreso,
+      altaValida ? fechaAlta : null
+    );
+
+    const resultado = {
+      nombreArchivo,
+      datosPaciente,
+      fechaIngreso: ingreso.toISOString(),
+      fechaAlta: fechaAlta.toISOString(),
+      pacienteInternado,
+      diasHospitalizacion,
+      erroresAdmision: datosPaciente.errores_admision,
+      erroresEvolucion,
+      evolucionesRepetidas,
+      advertencias,
+      erroresAltaMedica,
+      erroresEpicrisis,
+      erroresFoja: resultadosFoja.errores,
+      resultadosFoja,
+      doctores,
+      // estudios
+      estudios,
+      estudiosConteo,
+      erroresEstudios,
+      comunicaciones,
+      totalErrores,
+      estado: totalErrores > 0 ? "Pendiente de corrección" : "Aprobado",
+    };
+
+    // Persistencia
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const { data, error } = await supabase
+      .from("auditorias")
+      .insert({
+        nombre_archivo: nombreArchivo,
+        nombre_paciente: datosPaciente.nombre || "No encontrado",
+        dni_paciente: datosPaciente.dni || "No encontrado",
+        obra_social: datosPaciente.obra_social || "No encontrada",
+        habitacion: datosPaciente.habitacion || "No encontrada", // preserva "BOX 3"
+        fecha_ingreso: ingreso.toISOString(),
+        fecha_alta: pacienteInternado ? null : fechaAlta.toISOString(),
+        total_errores: totalErrores,
+        errores_admision: datosPaciente.errores_admision.length,
+        errores_evoluciones: erroresEvolucion.length,
+        errores_foja_quirurgica: resultadosFoja.errores.length,
+        errores_alta_medica: pacienteInternado ? 0 : erroresAltaMedica.length,
+        errores_epicrisis: pacienteInternado ? 0 : erroresEpicrisis.length,
+        bisturi_armonico: resultadosFoja.bisturi_armonico || "No determinado",
+        estado: totalErrores > 0 ? "Pendiente de corrección" : "Aprobado",
+        // estudios
+        estudios_total: estudiosConteo.total,
+        estudios_imagenes: estudiosConteo.imagenes,
+        estudios_laboratorio: estudiosConteo.laboratorio,
+        estudios_procedimientos: estudiosConteo.procedimientos,
+        estudios, // JSON completo
+        errores_estudios: erroresEstudios,
+        errores_detalle: [
+          ...datosPaciente.errores_admision.map((e) => ({
+            tipo: "Admisión",
+            descripcion: e,
+          })),
+          ...erroresEvolucion.map((e) => ({ tipo: "Evolución", descripcion: e })),
+          ...advertencias.map((a) => ({ tipo: a.tipo, descripcion: a.descripcion })),
+          ...resultadosFoja.errores.map((e) => ({
+            tipo: "Foja Quirúrgica",
+            descripcion: e,
+          })),
+          ...(pacienteInternado ? [] : erroresAltaMedica.map((e) => ({ tipo: "Alta Médica", descripcion: e }))),
+          ...(pacienteInternado ? [] : erroresEpicrisis.map((e) => ({ tipo: "Epicrisis", descripcion: e }))),
+          ...erroresEstudios.map((e) => ({ tipo: "Estudios", descripcion: e })),
+        ],
+        comunicaciones,
+        datos_adicionales: {
+          doctores,
+          resultadosFoja,
+          diasHospitalizacion,
+          advertencias,
+        },
+      })
+      .select();
+
+    if (error) {
+      console.error("Error guardando en BD:", error);
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, resultado, auditoriaId: data?.[0]?.id }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    console.error("Error procesando PDF:", error);
+    return new Response(
+      JSON.stringify({
+        error: "Error procesando el archivo PDF",
+        details: error?.message,
+      }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+});
