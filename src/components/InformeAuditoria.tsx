@@ -1,9 +1,27 @@
 import { useState, useEffect } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle, FileText, Calendar, User, MessageSquare, Send, Loader2, CheckCircle2, Download } from 'lucide-react';
+import {
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  FileText,
+  Calendar,
+  User,
+  MessageSquare,
+  Send,
+  Loader2,
+  CheckCircle2,
+  Download,
+  Scan,
+  FlaskConical,
+  ActivitySquare,
+} from 'lucide-react';
 import { enviarMensajeWhatsApp, verificarMensajeEnviado } from '../services/whatsappService';
 import { generateAuditPDF } from '../utils/pdfGenerator';
 import { uploadPDFToStorage, updateAuditoriaPDFUrl } from '../services/pdfStorageService';
 
+/* =========================
+   Tipos base existentes
+   ========================= */
 interface ResultadoAuditoria {
   nombreArchivo: string;
   datosPaciente: {
@@ -50,20 +68,55 @@ interface ResultadoAuditoria {
   }>;
   totalErrores: number;
   estado: string;
+
+  // ===== NUEVO: Estudios (opcionales, no rompen si faltan) =====
+  estudios?: Estudio[];
+  estudiosConteo?: {
+    total: number;
+    imagenes: number;
+    laboratorio: number;
+    procedimientos: number;
+  };
+  erroresEstudios?: string[];
 }
 
+/* =========================
+   Tipos nuevos: Estudios
+   ========================= */
+type CategoriaEstudio = 'Imagenes' | 'Laboratorio' | 'Procedimientos';
+
+interface Estudio {
+  categoria: CategoriaEstudio;
+  tipo: string;
+  fecha?: string | null;
+  hora?: string | null;
+  lugar?: string | null;
+  resultado?: string | null;
+  informe_presente: boolean;
+  advertencias: string[];
+}
+
+/* =========================
+   Props
+   ========================= */
 interface Props {
   resultado: ResultadoAuditoria;
   auditoriaId?: string;
 }
 
+/* =========================
+   Componente
+   ========================= */
 export function InformeAuditoria({ resultado, auditoriaId }: Props) {
   const [enviando, setEnviando] = useState(false);
   const [mensajesEnviados, setMensajesEnviados] = useState<Set<number>>(new Set());
-  const [notification, setNotification] = useState<{message: string; type: 'success' | 'error'} | null>(null);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [, setVerificandoEnviados] = useState(false);
   const [generandoPDF, setGenerandoPDF] = useState(false);
 
+  /* =========================
+     Helpers
+     ========================= */
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('es-AR', {
@@ -73,66 +126,6 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
       hour: '2-digit',
       minute: '2-digit',
     });
-  };
-
-  useEffect(() => {
-    const verificarMensajesPrevios = async () => {
-      if (!auditoriaId || resultado.comunicaciones.length === 0) return;
-
-      setVerificandoEnviados(true);
-      const enviados = new Set<number>();
-
-      for (let i = 0; i < resultado.comunicaciones.length; i++) {
-        const yaEnviado = await verificarMensajeEnviado(auditoriaId, i);
-        if (yaEnviado) {
-          enviados.add(i);
-        }
-      }
-
-      setMensajesEnviados(enviados);
-      setVerificandoEnviados(false);
-    };
-
-    verificarMensajesPrevios();
-  }, [auditoriaId, resultado.comunicaciones.length]);
-
-  const showNotification = (message: string, type: 'success' | 'error') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 5000);
-  };
-
-  const handleEnviarDirecto = async (index: number) => {
-    if (enviando) return;
-
-    setEnviando(true);
-
-    try {
-      const comunicacion = resultado.comunicaciones[index];
-
-      const response = await enviarMensajeWhatsApp({
-        comunicacion,
-        datosPaciente: resultado.datosPaciente,
-        nombreArchivo: resultado.nombreArchivo,
-        auditoriaId,
-        comunicacionIndex: index,
-      });
-
-      if (response.success) {
-        setMensajesEnviados(prev => new Set([...prev, index]));
-        showNotification('✅ Mensaje enviado correctamente', 'success');
-      } else {
-        if (response.yaEnviado) {
-          showNotification('Este mensaje ya fue enviado anteriormente', 'error');
-        } else {
-          showNotification('❌ Error al enviar el mensaje', 'error');
-        }
-      }
-    } catch (error) {
-      showNotification('❌ Error al enviar el mensaje', 'error');
-      console.error('Error:', error);
-    } finally {
-      setEnviando(false);
-    }
   };
 
   const getUrgenciaColor = (urgencia: string) => {
@@ -146,38 +139,61 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
     }
   };
 
-  const handleDescargarPDF = async () => {
-    setGenerandoPDF(true);
-    try {
-      const pdfBlob = await generateAuditPDF(resultado, true);
-
-      if (auditoriaId) {
-        const uploadResult = await uploadPDFToStorage(
-          pdfBlob,
-          resultado.datosPaciente.nombre || 'Paciente'
-        );
-
-        if (uploadResult.success && uploadResult.url) {
-          await updateAuditoriaPDFUrl(auditoriaId, uploadResult.url);
-          console.log('PDF guardado en Storage:', uploadResult.url);
-        }
-      }
-
-      showNotification('PDF descargado exitosamente', 'success');
-    } catch (error) {
-      console.error('Error al generar PDF:', error);
-      showNotification('Error al generar el PDF', 'error');
-    } finally {
-      setGenerandoPDF(false);
+  const getCategoriaClasses = (cat: CategoriaEstudio) => {
+    switch (cat) {
+      case 'Imagenes':
+        return 'bg-blue-50 text-blue-800 border-blue-200';
+      case 'Laboratorio':
+        return 'bg-purple-50 text-purple-800 border-purple-200';
+      case 'Procedimientos':
+        return 'bg-teal-50 text-teal-800 border-teal-200';
+      default:
+        return 'bg-gray-50 text-gray-800 border-gray-200';
     }
   };
+
+  const InformePill = ({ ok }: { ok: boolean }) => (
+    <span
+      className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${
+        ok ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+      }`}
+    >
+      {ok ? 'Informe presente' : 'Sin informe'}
+    </span>
+  );
+
+  const showNotification = (message: string, type: 'success' | 'error') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  /* =========================
+     Efectos
+     ========================= */
+  useEffect(() => {
+    const verificarMensajesPrevios = async () => {
+      if (!auditoriaId || resultado.comunicaciones.length === 0) return;
+
+      setVerificandoEnviados(true);
+      const enviados = new Set<number>();
+
+      for (let i = 0; i < resultado.comunicaciones.length; i++) {
+        const yaEnviado = await verificarMensajeEnviado(auditoriaId, i);
+        if (yaEnviado) enviados.add(i);
+      }
+
+      setMensajesEnviados(enviados);
+      setVerificandoEnviados(false);
+    };
+
+    verificarMensajesPrevios();
+  }, [auditoriaId, resultado.comunicaciones.length]);
 
   useEffect(() => {
     const generarYSubirPDFAutomatico = async () => {
       if (auditoriaId && resultado) {
         try {
           const pdfBlob = await generateAuditPDF(resultado, false);
-
           const uploadResult = await uploadPDFToStorage(
             pdfBlob,
             resultado.datosPaciente.nombre || 'Paciente',
@@ -197,8 +213,68 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
     generarYSubirPDFAutomatico();
   }, [auditoriaId, resultado]);
 
+  /* =========================
+     Acciones
+     ========================= */
+  const handleEnviarDirecto = async (index: number) => {
+    if (enviando) return;
+    setEnviando(true);
+
+    try {
+      const comunicacion = resultado.comunicaciones[index];
+
+      const response = await enviarMensajeWhatsApp({
+        comunicacion,
+        datosPaciente: resultado.datosPaciente,
+        nombreArchivo: resultado.nombreArchivo,
+        auditoriaId,
+        comunicacionIndex: index,
+      });
+
+      if (response.success) {
+        setMensajesEnviados((prev) => new Set([...prev, index]));
+        showNotification('✅ Mensaje enviado correctamente', 'success');
+      } else {
+        if (response.yaEnviado) showNotification('Este mensaje ya fue enviado anteriormente', 'error');
+        else showNotification('❌ Error al enviar el mensaje', 'error');
+      }
+    } catch (error) {
+      showNotification('❌ Error al enviar el mensaje', 'error');
+      console.error('Error:', error);
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const handleDescargarPDF = async () => {
+    setGenerandoPDF(true);
+    try {
+      const pdfBlob = await generateAuditPDF(resultado, true);
+
+      if (auditoriaId) {
+        const uploadResult = await uploadPDFToStorage(pdfBlob, resultado.datosPaciente.nombre || 'Paciente');
+
+        if (uploadResult.success && uploadResult.url) {
+          await updateAuditoriaPDFUrl(auditoriaId, uploadResult.url);
+          console.log('PDF guardado en Storage:', uploadResult.url);
+        }
+      }
+
+      showNotification('PDF descargado exitosamente', 'success');
+    } catch (error) {
+      console.error('Error al generar PDF:', error);
+      showNotification('Error al generar el PDF', 'error');
+    } finally {
+      setGenerandoPDF(false);
+    }
+  };
+
+  /* =========================
+     Render
+     ========================= */
   return (
     <div className="space-y-8">
+      {/* Botón superior para PDF */}
       <div className="flex justify-center mb-6">
         <button
           onClick={handleDescargarPDF}
@@ -219,6 +295,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </button>
       </div>
 
+      {/* Encabezado */}
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8 border-t-4 border-green-600">
         <div className="flex items-center gap-3 mb-6">
           <FileText className="w-10 h-10 text-green-600" />
@@ -247,10 +324,15 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
                 <strong className="text-green-600">PACIENTE ACTUALMENTE INTERNADO</strong> - Los datos corresponden a la internación en curso.
               </span>
             )}
-            Durante la auditoría automatizada se detectaron <strong className="text-red-600">{resultado.totalErrores} errores</strong> que requieren corrección{resultado.pacienteInternado ? ' durante la internación' : ' antes del envío a OSDE'}.
+            Durante la auditoría automatizada se detectaron{' '}
+            <strong className="text-red-600">{resultado.totalErrores} errores</strong> que requieren corrección
+            {resultado.pacienteInternado ? ' durante la internación' : ' antes del envío a OSDE'}.
             {resultado.resultadosFoja.bisturi_armonico && (
               <span className="block mt-2">
-                El Bisturí Armónico <strong>{resultado.resultadosFoja.bisturi_armonico === 'SI' ? 'FUE UTILIZADO' : 'NO FUE UTILIZADO'}</strong>
+                El Bisturí Armónico{' '}
+                <strong>
+                  {resultado.resultadosFoja.bisturi_armonico === 'SI' ? 'FUE UTILIZADO' : 'NO FUE UTILIZADO'}
+                </strong>
                 {resultado.resultadosFoja.bisturi_armonico === 'SI' && (
                   <span className="text-red-600 font-semibold"> - REQUIERE AUTORIZACIÓN ESPECIAL DE OSDE</span>
                 )}
@@ -260,6 +342,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       </div>
 
+      {/* Datos del paciente */}
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
         <div className="flex items-center gap-3 mb-6">
           <User className="w-8 h-8 text-gray-700" />
@@ -294,6 +377,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       </div>
 
+      {/* Período de hospitalización */}
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
         <div className="flex items-center gap-3 mb-6">
           <Calendar className="w-8 h-8 text-gray-700" />
@@ -323,6 +407,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       </div>
 
+      {/* Síntesis del análisis + KPIs de estudios */}
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
         <div className="flex items-center gap-3 mb-6">
           <AlertTriangle className="w-8 h-8 text-red-600" />
@@ -362,9 +447,89 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
             <p className="text-sm text-green-700">Comunicaciones generadas</p>
             <p className="text-2xl font-bold text-green-900">{resultado.comunicaciones.length}</p>
           </div>
+
+          {/* === NUEVO: KPIs de Estudios === */}
+          {resultado.estudiosConteo?.total !== undefined && (
+            <>
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-sm text-gray-600">Estudios detectados</p>
+                <p className="text-2xl font-bold text-gray-900">{resultado.estudiosConteo.total}</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-sm text-gray-600 flex items-center gap-2">
+                  <Scan className="w-4 h-4 text-blue-600" /> Imágenes
+                </p>
+                <p className="text-2xl font-bold text-gray-900">{resultado.estudiosConteo.imagenes}</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-sm text-gray-600 flex items-center gap-2">
+                  <FlaskConical className="w-4 h-4 text-purple-600" /> Laboratorio
+                </p>
+                <p className="text-2xl font-bold text-gray-900">{resultado.estudiosConteo.laboratorio}</p>
+              </div>
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-sm text-gray-600 flex items-center gap-2">
+                  <ActivitySquare className="w-4 h-4 text-teal-600" /> Procedimientos
+                </p>
+                <p className="text-2xl font-bold text-gray-900">{resultado.estudiosConteo.procedimientos}</p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
+      {/* === NUEVO: Estudios realizados === */}
+      {(resultado.estudios?.length ?? 0) > 0 && (
+        <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
+          <div className="flex items-center gap-3 mb-6">
+            <FileText className="w-8 h-8 text-gray-700" />
+            <h2 className="text-2xl font-bold text-gray-900">Estudios realizados</h2>
+          </div>
+
+          <div className="space-y-4">
+            {resultado.estudios!.map((e, idx) => (
+              <div key={idx} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${getCategoriaClasses(e.categoria)}`}>
+                      {e.categoria}
+                    </span>
+                    <h3 className="text-lg font-semibold text-gray-900">{e.tipo}</h3>
+                  </div>
+                  <InformePill ok={!!e.informe_presente} />
+                </div>
+
+                <div className="mt-2 grid sm:grid-cols-3 gap-3 text-sm text-gray-700">
+                  <div>
+                    <span className="text-gray-500">Fecha/Hora: </span>
+                    <span>
+                      {e.fecha ?? '—'}
+                      {e.hora ? ` ${e.hora}` : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Lugar: </span>
+                    <span>{e.lugar ?? '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Advertencias: </span>
+                    <span>{e.advertencias?.length ? e.advertencias.join(', ') : '—'}</span>
+                  </div>
+                </div>
+
+                {e.resultado && (
+                  <div className="mt-3 bg-white p-3 rounded border border-gray-200">
+                    <p className="text-xs font-semibold text-gray-600 mb-1">Resultado / Impresión</p>
+                    <p className="text-gray-800">{e.resultado}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Errores Detectados (incluye bloque de Estudios) */}
       <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
         <div className="flex items-center gap-3 mb-6">
           <AlertCircle className="w-8 h-8 text-red-600" />
@@ -508,6 +673,28 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
             </div>
           )}
 
+          {/* === NUEVO: Errores de Estudios === */}
+          {(resultado.erroresEstudios?.length ?? 0) > 0 && (
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 bg-red-600 rounded-full"></span>
+                Errores en Estudios
+              </h3>
+              {resultado.erroresEstudios!.map((error, idx) => (
+                <div key={idx} className="ml-4 p-4 bg-red-50 border-l-4 border-red-600 rounded mb-2">
+                  <p className="text-sm font-semibold text-red-900 mb-1">CRÍTICO</p>
+                  <p className="text-gray-700">{error}</p>
+                  <p className="text-sm text-gray-600 mt-2">
+                    <strong>Impacto:</strong> Si no hay informe/resultado, OSDE puede debitar el estudio.
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    <strong>Sector responsable:</strong> Diagnóstico por Imágenes / Laboratorio / Procedimientos
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
           {resultado.totalErrores === 0 && (
             <div className="p-6 bg-green-50 border-l-4 border-green-600 rounded flex items-center gap-3">
               <CheckCircle className="w-8 h-8 text-green-600" />
@@ -520,6 +707,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       </div>
 
+      {/* Comunicaciones */}
       {resultado.comunicaciones.length > 0 && (
         <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
           <div className="flex items-center gap-3 mb-6">
@@ -529,22 +717,15 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
 
           <div className="space-y-6">
             {resultado.comunicaciones.map((com, idx) => (
-              <div
-                key={idx}
-                className={`p-6 rounded-lg border-2 ${getUrgenciaColor(com.urgencia)}`}
-              >
+              <div key={idx} className={`p-6 rounded-lg border-2 ${getUrgenciaColor(com.urgencia)}`}>
                 <div className="flex justify-between items-start mb-4">
                   <div>
-                    <h3 className="text-lg font-bold text-gray-900 mb-1">
-                      Comunicación N.º {idx + 1}
-                    </h3>
+                    <h3 className="text-lg font-bold text-gray-900 mb-1">Comunicación N.º {idx + 1}</h3>
                     <p className="text-sm text-gray-700">
                       <strong>Sector:</strong> {com.sector}
                     </p>
                   </div>
-                  <span className="px-3 py-1 bg-white rounded-full text-sm font-bold border-2">
-                    {com.urgencia}
-                  </span>
+                  <span className="px-3 py-1 bg-white rounded-full text-sm font-bold border-2">{com.urgencia}</span>
                 </div>
 
                 <div className="space-y-2 mb-4">
@@ -578,9 +759,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
 
                 <div className="mt-4 p-3 bg-white rounded border border-gray-300">
                   <p className="text-sm font-semibold text-gray-700">Acción sugerida:</p>
-                  <p className="text-sm text-gray-700">
-                    Completar la información faltante y reenviar el archivo actualizado.
-                  </p>
+                  <p className="text-sm text-gray-700">Completar la información faltante y reenviar el archivo actualizado.</p>
                 </div>
 
                 <div className="mt-4 flex gap-3">
@@ -615,25 +794,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       )}
 
-      {notification && (
-        <div className="fixed bottom-6 right-6 z-50 animate-slide-in">
-          <div
-            className={`px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 ${
-              notification.type === 'success'
-                ? 'bg-green-600 text-white'
-                : 'bg-red-600 text-white'
-            }`}
-          >
-            {notification.type === 'success' ? (
-              <CheckCircle2 className="w-6 h-6" />
-            ) : (
-              <AlertCircle className="w-6 h-6" />
-            )}
-            <p className="font-semibold">{notification.message}</p>
-          </div>
-        </div>
-      )}
-
+      {/* Verificaciones adicionales */}
       {resultado.resultadosFoja && (
         <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Verificaciones Adicionales</h2>
@@ -656,16 +817,22 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
             <div className="p-4 bg-gray-50 rounded-lg">
               <p className="text-sm text-gray-600 mb-1">Foja quirúrgica</p>
               <p className="font-semibold text-gray-900">
-                {resultado.erroresFoja.some(e => e.includes('foja')) ? '❌ No encontrada' : '✅ Completa'}
+                {resultado.erroresFoja.some((e) => e.includes('foja')) ? '❌ No encontrada' : '✅ Completa'}
               </p>
             </div>
 
-            <div className={`p-4 rounded-lg ${resultado.resultadosFoja.bisturi_armonico === 'SI' ? 'bg-red-100' : 'bg-green-50'}`}>
+            <div
+              className={`p-4 rounded-lg ${
+                resultado.resultadosFoja.bisturi_armonico === 'SI' ? 'bg-red-100' : 'bg-green-50'
+              }`}
+            >
               <p className="text-sm text-gray-600 mb-1">Bisturí Armónico</p>
               <p className="font-semibold text-gray-900">
-                {resultado.resultadosFoja.bisturi_armonico === 'SI' ? '⚡ Utilizado - REQUIERE AUTORIZACIÓN' :
-                 resultado.resultadosFoja.bisturi_armonico === 'NO' ? '✅ No utilizado' :
-                 '❓ No determinado'}
+                {resultado.resultadosFoja.bisturi_armonico === 'SI'
+                  ? '⚡ Utilizado - REQUIERE AUTORIZACIÓN'
+                  : resultado.resultadosFoja.bisturi_armonico === 'NO'
+                  ? '✅ No utilizado'
+                  : '❓ No determinado'}
               </p>
             </div>
 
@@ -685,18 +852,17 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       )}
 
+      {/* Conclusión + botón inferior PDF */}
       <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-xl shadow-lg p-8 text-white">
         <h2 className="text-2xl font-bold mb-4">Conclusión Final</h2>
         <p className="text-gray-200 mb-4">
-          {resultado.pacienteInternado ? (
-            resultado.totalErrores > 0
+          {resultado.pacienteInternado
+            ? resultado.totalErrores > 0
               ? `El paciente se encuentra actualmente INTERNADO. Se detectaron ${resultado.totalErrores} errores que deben corregirse durante la internación para facilitar el proceso de cierre posterior.`
               : `El paciente se encuentra actualmente INTERNADO. La documentación está completa hasta el momento. Continuar registrando las evoluciones diarias.`
-          ) : (
-            resultado.totalErrores > 0
-              ? `El documento se encuentra en revisión, con necesidad de corrección antes del envío a OSDE. Una vez completadas las correcciones, el caso podrá marcarse como Aprobado.`
-              : `El documento está completo y aprobado. Puede proceder con el envío a OSDE.`
-          )}
+            : resultado.totalErrores > 0
+            ? `El documento se encuentra en revisión, con necesidad de corrección antes del envío a OSDE. Una vez completadas las correcciones, el caso podrá marcarse como Aprobado.`
+            : `El documento está completo y aprobado. Puede proceder con el envío a OSDE.`}
         </p>
 
         <div className="flex items-center gap-4 mb-4">
@@ -717,9 +883,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         {resultado.totalErrores > 0 && (
           <div className="p-4 bg-red-600 rounded-lg">
             <p className="font-bold mb-2">Acción requerida:</p>
-            <p className="text-red-100">
-              Completar todas las correcciones indicadas en las comunicaciones y reenviar el documento actualizado.
-            </p>
+            <p className="text-red-100">Completar todas las correcciones indicadas en las comunicaciones y reenviar el documento actualizado.</p>
           </div>
         )}
 
@@ -730,6 +894,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       </div>
 
+      {/* Botón inferior para PDF (duplicado por conveniencia de UX) */}
       <div className="flex justify-center mt-8">
         <button
           onClick={handleDescargarPDF}
@@ -749,6 +914,20 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
           )}
         </button>
       </div>
+
+      {/* Notificaciones */}
+      {notification && (
+        <div className="fixed bottom-6 right-6 z-50 animate-slide-in">
+          <div
+            className={`px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 ${
+              notification.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+            }`}
+          >
+            {notification.type === 'success' ? <CheckCircle2 className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
+            <p className="font-semibold">{notification.message}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
