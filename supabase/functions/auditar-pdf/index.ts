@@ -548,16 +548,38 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
 
   // Equipo
   const patronesEquipo = {
-    cirujano: /cirujano[:\s]*([A-Z][A-Z\s,]+)/i,
-    primer_ayudante: /primer\s+ayudante[:\s]*([A-Z][A-Z\s,]+)/i,
-    anestesista: /anestesista[:\s]*([A-Z][A-Z\s,]+)/i,
-    instrumentador: /instrumentador[:\s]*([A-Z][A-Z\s,]+)/i,
-    ayudante_residencia: /ayudante\s+residencia[:\s]*([A-Z][A-Z\s,]+)/i,
-    ayudante: /ayudante[:\s]*([A-Z][A-Z\s,]+)/i,
+    responsable: /responsable[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
+    cirujano: /cirujano[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
+    anestesista: /anestesista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
+    instrumentador: /instrumentador\/?a?[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
+    ayudante_residencia: /ayudante\s+residencia[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
+    primer_ayudante: /primer\s+ayudante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
+    ayudante: /ayudante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
   } as const;
+  
+  // Usar un Set para evitar duplicados (nombre + rol)
+  const vistos = new Set<string>();
+  
   for (const [rol, p] of Object.entries(patronesEquipo)) {
-    const m = trozo.match(p);
-    if (m) resultados.equipo_quirurgico.push({ rol, nombre: m[1].trim() });
+    const matches = trozo.matchAll(new RegExp(p.source, 'gi'));
+    for (const m of matches) {
+      if (!m[1]) continue;
+      
+      // Limpiar el nombre de palabras comunes que no son nombres
+      let nombre = m[1].trim()
+        .replace(/\s+([A-ZÁÉÍÓÚÑ]{1,4}|Fecha|Fecha:|de|para|en)\s*$/i, '')
+        .replace(/^([A-ZÁÉÍÓÚÑ]{1,3})\s+/i, '')
+        .trim();
+      
+      // Solo agregar si el nombre tiene más de 3 caracteres y no es duplicado
+      if (nombre.length > 3) {
+        const key = `${rol}:${nombre}`;
+        if (!vistos.has(key)) {
+          vistos.add(key);
+          resultados.equipo_quirurgico.push({ rol, nombre });
+        }
+      }
+    }
   }
 
   // Horas/Fechas
