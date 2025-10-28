@@ -589,6 +589,11 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
         .replace(/\s+(Tipo|de|para|en)\s+[A-ZÁÉÍÓÚÑ]+\s*$/i, '')
         .trim();
       
+      // Eliminar "residencia" u otras palabras no-nombre al inicio
+      if (nombre.toLowerCase().startsWith('residencia ') || nombre.toLowerCase().startsWith('residencia,')) {
+        nombre = nombre.replace(/^residencia[\s,]+/i, '').trim();
+      }
+      
       // Solo agregar si el nombre tiene más de 3 caracteres y no es duplicado
       if (nombre.length > 3) {
         const key = `${rol}:${nombre}`;
@@ -596,7 +601,9 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
         // Si es "ayudante", verificar que no haya "ayudante_residencia" con el mismo nombre
         if (rol === 'ayudante') {
           const yaExisteResidencia = resultados.equipo_quirurgico.some(
-            e => e.rol === 'ayudante_residencia' && e.nombre === nombre
+            e => e.rol === 'ayudante_residencia' && 
+                 (e.nombre === nombre || e.nombre.toLowerCase().includes(nombre.toLowerCase()) || 
+                  nombre.toLowerCase().includes(e.nombre.toLowerCase()))
           );
           if (yaExisteResidencia) {
             continue; // Saltar este ayudante, ya existe como ayudante_residencia
