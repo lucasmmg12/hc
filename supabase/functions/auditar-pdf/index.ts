@@ -565,10 +565,29 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
     for (const m of matches) {
       if (!m[1]) continue;
       
-      // Limpiar el nombre de palabras comunes que no son nombres
-      let nombre = m[1].trim()
-        .replace(/\s+([A-ZÁÉÍÓÚÑ]{1,4}|Fecha|Fecha:|de|para|en)\s*$/i, '')
-        .replace(/^([A-ZÁÉÍÓÚÑ]{1,3})\s+/i, '')
+      // Limpiar el nombre: identificar dónde termina el nombre real
+      // Lista de palabras que marcan el fin del nombre (otros roles del equipo quirúrgico)
+      const palabrasFinNombre = [
+        'cirujano', 'cirug', 'anestesista', 'instrumentador', 'ayudante', 
+        'responsable', 'primer', 'tipo de visita', 'tipo', 'fecha', 'hora',
+        'diagnostico', 'procedimiento', 'matricula', 'especialidad'
+      ];
+
+      let nombre = m[1].trim();
+
+      // Detectar dónde termina el nombre al encontrar otra palabra clave de rol
+      for (const palabra of palabrasFinNombre) {
+        const index = nombre.toLowerCase().indexOf(palabra);
+        if (index > 5) { // Si la palabra aparece después de los primeros caracteres
+          nombre = nombre.substring(0, index).trim();
+          break;
+        }
+      }
+
+      // Limpieza final: eliminar palabras sueltas comunes
+      nombre = nombre
+        .replace(/\s+(Anestesista|Instrumentador|Ayudante|Cirujano|Responsable|Fecha|Hora)\s*$/i, '')
+        .replace(/\s+(Tipo|de|para|en)\s+[A-ZÁÉÍÓÚÑ]+\s*$/i, '')
         .trim();
       
       // Solo agregar si el nombre tiene más de 3 caracteres y no es duplicado
