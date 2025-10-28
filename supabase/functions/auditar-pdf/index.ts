@@ -388,13 +388,13 @@ function verificarAltaMedica(texto: string): string[] {
 function verificarEpicrisis(texto: string): string[] {
   const errores: string[] = [];
   const lineas = texto.split("\n");
+  
+  // Solo buscar "epicrisis" específicamente
   const patrones = [
     /epicrisis/i,
     /epicrísis/i,
-    /resumen\s+de\s+alta/i,
-    /cierre\s+de\s+atenci[oó]n/i,
-    /indicaciones\s+y\s+evoluci[oó]n/i,
   ];
+  
   const inicioUltimaHoja = Math.max(0, lineas.length - 400);
   const ult = lineas.slice(inicioUltimaHoja);
   let ok = false;
@@ -408,7 +408,9 @@ function verificarEpicrisis(texto: string): string[] {
     }
     if (ok) break;
   }
-  if (!ok) errores.push("❌ CRÍTICO: No existe epicrisis (resumen de alta)");
+  
+  // Cambiar de error crítico a advertencia
+  if (!ok) errores.push("⚠️ ADVERTENCIA: No se encontró documento de epicrisis");
   return errores;
 }
 
@@ -1021,10 +1023,10 @@ function generarComunicacionesOptimizadas(
     comunicaciones.push({
       sector: "Cirugía",
       responsable: nombres,
-      motivo: "Falta epicrisis (resumen de alta)",
-      urgencia: "CRÍTICA",
+      motivo: "Advertencia: epicrisis no detectada",
+      urgencia: "MEDIA",
       errores: erroresEpicrisis,
-      mensaje: "Se detectó ausencia de epicrisis. Completar.",
+      mensaje: "No se encontró documento de epicrisis. Verificar si es necesario.",
     });
   }
 
