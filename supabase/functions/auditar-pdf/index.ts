@@ -839,8 +839,8 @@ function extraerEstudios(texto: string) {
       hora: null,
       lugar: null,
       resultado: null,
-      informe_presente: false,
-      advertencias: ["sin informe", "sin fecha"],
+      informe_presente: true, // Kinesiología no requiere informe adicional
+      advertencias: [], // Sin advertencias porque no es obligatorio
       numero_hoja: hoja,
     });
   });
@@ -862,9 +862,7 @@ function extraerEstudios(texto: string) {
     }
   }
 
-  if (totalSesionesKinesiologia === 0) {
-    erroresEstudios.push("No se registraron sesiones de kinesiología durante la internación");
-  }
+  // Ya no se marca como error si no hay kinesiología (no es obligatorio)
 
   return { estudios: dedup, erroresEstudios, conteo };
 }
