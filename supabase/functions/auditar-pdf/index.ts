@@ -711,6 +711,24 @@ function extraerEstudios(texto: string) {
   const sesionesKinesiologia: Array<{ hoja: number; linea: string }> = [];
 
   const tipoDetectado = (base: string, linea: string) => {
+    // NO agregar lugar a estos tipos de estudios
+    const tiposSinLugar = [
+      "Kinesiología", 
+      "Perfil hepático", 
+      "Hemograma", 
+      "PCR", 
+      "VSG", 
+      "Glucemia", 
+      "Creatinina", 
+      "Urea",
+      "Orina completa",
+      "Ionograma"
+    ];
+    
+    if (tiposSinLugar.includes(base)) {
+      return base;
+    }
+    
     const zona =
       linea.match(
         /de\s+(t[oó]rax|abdomen|pelvis|columna|cerebro|cr[aá]neo|cuello|rodilla|hombro|hep[aá]tico|renal|tiroides|obst[eé]trica|venoso|arterial|car[oó]tideo)/i
@@ -752,46 +770,47 @@ function extraerEstudios(texto: string) {
       paginaActual = Number(matchPagina[1]);
     }
 
-const l = lRaw.trim();
-if (!l) continue;
+    const l = lRaw.trim();
+    if (!l) continue;
 
-// Verificar si estamos en páginas de exámenes complementarios
-const esExamenExterno = paginasExamenesComplementarios.has(paginaActual) || 
-                       paginasEstudiosEntregados.has(paginaActual);
+    // Verificar si estamos en páginas de exámenes complementarios
+    const esExamenExterno = paginasExamenesComplementarios.has(paginaActual) || 
+                           paginasEstudiosEntregados.has(paginaActual);
 
-// ✅ NUEVO: Detectar kinesiología ANTES del filtro de exámenes externos
-for (const [re, label] of patronesProc) {
-  if (re.test(l) && label === "Kinesiología") {
-    sesionesKinesiologia.push({ hoja: paginaActual, linea: l });
-    pushEstudio("Procedimientos", label, l, paginaActual);
-    break;
+    // ✅ NUEVO: Detectar kinesiología ANTES del filtro de exámenes externos
+    for (const [re, label] of patronesProc) {
+      if (re.test(l) && label === "Kinesiología") {
+        sesionesKinesiologia.push({ hoja: paginaActual, linea: l });
+        pushEstudio("Procedimientos", label, l, paginaActual);
+        break;
+      }
+    }
+
+    // Si es examen externo, SKIP (pero ya registramos kinesiología arriba)
+    if (esExamenExterno) continue;
+
+    // Detectar estudios (imágenes y laboratorio)
+    for (const [re, label] of patronesImagenes) {
+      if (re.test(l)) {
+        pushEstudio("Imagenes", label, l, paginaActual);
+        break;
+      }
+    }
+    for (const [re, label] of patronesLab) {
+      if (re.test(l)) {
+        pushEstudio("Laboratorio", label, l, paginaActual);
+        break;
+      }
+    }
+
+    // Detectar otros procedimientos (excluye kinesiología ya procesada)
+    for (const [re, label] of patronesProc) {
+      if (re.test(l) && label !== "Kinesiología") {
+        pushEstudio("Procedimientos", label, l, paginaActual);
+        break;
+      }
+    }
   }
-}
-
-// Si es examen externo, SKIP (pero ya registramos kinesiología arriba)
-if (esExamenExterno) continue;
-
-// Detectar estudios (imágenes y laboratorio)
-for (const [re, label] of patronesImagenes) {
-  if (re.test(l)) {
-    pushEstudio("Imagenes", label, l, paginaActual);
-    break;
-  }
-}
-for (const [re, label] of patronesLab) {
-  if (re.test(l)) {
-    pushEstudio("Laboratorio", label, l, paginaActual);
-    break;
-  }
-}
-
-// Detectar otros procedimientos (excluye kinesiología ya procesada)
-for (const [re, label] of patronesProc) {
-  if (re.test(l) && label !== "Kinesiología") {
-    pushEstudio("Procedimientos", label, l, paginaActual);
-    break;
-  }
-}
 
   // Dedup por categoria+tipo+fecha
   const visto = new Set<string>();
