@@ -752,40 +752,46 @@ function extraerEstudios(texto: string) {
       paginaActual = Number(matchPagina[1]);
     }
 
-    const l = lRaw.trim();
-    if (!l) continue;
+const l = lRaw.trim();
+if (!l) continue;
 
-    // Verificar si estamos en páginas de exámenes complementarios
-    const esExamenExterno = paginasExamenesComplementarios.has(paginaActual) || 
-                           paginasEstudiosEntregados.has(paginaActual);
+// Verificar si estamos en páginas de exámenes complementarios
+const esExamenExterno = paginasExamenesComplementarios.has(paginaActual) || 
+                       paginasEstudiosEntregados.has(paginaActual);
 
-    // Si es examen externo, SKIP
-    if (esExamenExterno) continue;
-
-    // Detectar estudios
-    for (const [re, label] of patronesImagenes) {
-      if (re.test(l)) {
-        pushEstudio("Imagenes", label, l, paginaActual);
-        break;
-      }
-    }
-    for (const [re, label] of patronesLab) {
-      if (re.test(l)) {
-        pushEstudio("Laboratorio", label, l, paginaActual);
-        break;
-      }
-    }
-    for (const [re, label] of patronesProc) {
-      if (re.test(l)) {
-        // Caso especial: kinesiología - contar cada aparición en una página diferente
-        if (label === "Kinesiología") {
-          sesionesKinesiologia.push({ hoja: paginaActual, linea: l });
-        }
-        pushEstudio("Procedimientos", label, l, paginaActual);
-        break;
-      }
-    }
+// ✅ NUEVO: Detectar kinesiología ANTES del filtro de exámenes externos
+for (const [re, label] of patronesProc) {
+  if (re.test(l) && label === "Kinesiología") {
+    sesionesKinesiologia.push({ hoja: paginaActual, linea: l });
+    pushEstudio("Procedimientos", label, l, paginaActual);
+    break;
   }
+}
+
+// Si es examen externo, SKIP (pero ya registramos kinesiología arriba)
+if (esExamenExterno) continue;
+
+// Detectar estudios (imágenes y laboratorio)
+for (const [re, label] of patronesImagenes) {
+  if (re.test(l)) {
+    pushEstudio("Imagenes", label, l, paginaActual);
+    break;
+  }
+}
+for (const [re, label] of patronesLab) {
+  if (re.test(l)) {
+    pushEstudio("Laboratorio", label, l, paginaActual);
+    break;
+  }
+}
+
+// Detectar otros procedimientos (excluye kinesiología ya procesada)
+for (const [re, label] of patronesProc) {
+  if (re.test(l) && label !== "Kinesiología") {
+    pushEstudio("Procedimientos", label, l, paginaActual);
+    break;
+  }
+}
 
   // Dedup por categoria+tipo+fecha
   const visto = new Set<string>();
