@@ -546,21 +546,20 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
     }
   }
 
-  // Equipo
-  const patronesEquipo = {
-    responsable: /responsable[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
-    cirujano: /cirujano[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
-    anestesista: /anestesista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
-    instrumentador: /instrumentador\/?a?[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
-    ayudante_residencia: /ayudante\s+residencia[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
-    primer_ayudante: /primer\s+ayudante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
-    ayudante: /ayudante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i,
-  } as const;
+  // Equipo - Orden específico: más específicos primero para evitar duplicados
+  const patronesEquipo = [
+    { rol: 'cirujano', patrón: /cirujano[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+    { rol: 'anestesista', patrón: /anestesista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+    { rol: 'instrumentador', patrón: /instrumentador\/?a?[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+    { rol: 'primer_ayudante', patrón: /primer\s+ayudante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+    { rol: 'ayudante_residencia', patrón: /ayudante\s+residencia[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+    { rol: 'ayudante', patrón: /ayudante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+  ];
   
   // Usar un Set para evitar duplicados (nombre + rol)
   const vistos = new Set<string>();
   
-  for (const [rol, p] of Object.entries(patronesEquipo)) {
+  for (const { rol, patrón: p } of patronesEquipo) {
     const matches = trozo.matchAll(new RegExp(p.source, 'gi'));
     for (const m of matches) {
       if (!m[1]) continue;
@@ -593,6 +592,17 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
       // Solo agregar si el nombre tiene más de 3 caracteres y no es duplicado
       if (nombre.length > 3) {
         const key = `${rol}:${nombre}`;
+        
+        // Si es "ayudante", verificar que no haya "ayudante_residencia" con el mismo nombre
+        if (rol === 'ayudante') {
+          const yaExisteResidencia = resultados.equipo_quirurgico.some(
+            e => e.rol === 'ayudante_residencia' && e.nombre === nombre
+          );
+          if (yaExisteResidencia) {
+            continue; // Saltar este ayudante, ya existe como ayudante_residencia
+          }
+        }
+        
         if (!vistos.has(key)) {
           vistos.add(key);
           resultados.equipo_quirurgico.push({ rol, nombre });
