@@ -657,7 +657,7 @@ function extraerEstudios(texto: string) {
     [/\beco[-\s]?cardiogram?a\b/i, "Ecocardiograma"],
     [/\becg|electrocardiograma\b/i, "Electrocardiograma"],
     [/\bparacentesis|toracocentesis|punci[oó]n lumbar\b/i, "Procedimiento"],
-    [/\b(ktr|kine|kinesio|kinesiolog[íi]a|kinesioterapia)\b/i, "Kinesiología"],
+    [/\b(ktr|kine|kinesio|kinesiolog[íi]a|kinesioterapia|kinesioter\w+|kine\.|ktr\.)\b/i, "Kinesiología"],
   ];
 
   // Rastrear número de página actual y identificar páginas de "Exámenes complementarios"
