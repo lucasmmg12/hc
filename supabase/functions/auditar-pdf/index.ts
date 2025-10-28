@@ -71,6 +71,7 @@ interface Estudio {
   resultado?: string | null;
   informe_presente: boolean;
   advertencias: string[];
+  numero_hoja?: number; // Número de página donde se encontró el estudio
 }
 
 /* =========================
@@ -503,7 +504,7 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
     /registro\s+quirúrgico/i,
     /parte\s+quirúrgico/i,
   ];
-  let header = null;
+  let header: RegExpMatchArray | null = null;
   for (const p of patronesFoja) {
     header = texto.match(p);
     if (header) break;
@@ -526,7 +527,7 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
     }
   }
 
-  const inicio = header ? header.index || 0 : 0;
+  const inicio = header ? (header.index ?? 0) : 0;
   const trozo = texto.substring(inicio, inicio + 3000);
 
   // Bisturí armónico
@@ -628,6 +629,7 @@ function extraerEstudios(texto: string) {
   const reFecha = /(\b\d{1,2}\/\d{1,2}\/\d{2,4}\b)/i;
   const reHora = /(\b\d{1,2}:\d{2}(?::\d{2})?\b)/;
   const reInforme = /(informe|impresi[oó]n|conclusi[oó]n|resultado)/i;
+  const rePagina = /p[aá]gina\s+(\d+)/i;
 
   const patronesImagenes: Array<[RegExp, string]> = [
     [/\b(tac|tc|tomograf[ií]a)\b.*?(cerebro|cr[aá]neo|t[oó]rax|abdomen|pelvis|columna|cuello)?/i, "TAC"],
@@ -655,9 +657,59 @@ function extraerEstudios(texto: string) {
     [/\beco[-\s]?cardiogram?a\b/i, "Ecocardiograma"],
     [/\becg|electrocardiograma\b/i, "Electrocardiograma"],
     [/\bparacentesis|toracocentesis|punci[oó]n lumbar\b/i, "Procedimiento"],
+    [/\b(ktr|kine|kinesio|kinesiolog[íi]a|kinesioterapia)\b/i, "Kinesiología"],
   ];
 
+  // Rastrear número de página actual y identificar páginas de "Exámenes complementarios"
+  let paginaActual = 1;
+  const paginasExamenesComplementarios = new Set<number>();
+  const paginasEstudiosEntregados = new Set<number>();
+  let dentroDeExamenesComplementarios = false;
+  let dentroDeEstudiosEntregados = false;
+
+  // Primera pasada: identificar páginas de exámenes complementarios
+  for (let i = 0; i < lineas.length; i++) {
+    const linea = lineas[i];
+    
+    // Detectar cambio de página
+    const matchPagina = linea.match(rePagina);
+    if (matchPagina) {
+      paginaActual = Number(matchPagina[1]);
+    }
+
+    // Detectar inicio de "Exámenes complementarios"
+    if (/ex[áa]menes\s+complementarios/i.test(linea)) {
+      dentroDeExamenesComplementarios = true;
+      paginasExamenesComplementarios.add(paginaActual);
+    }
+
+    // Detectar "Estudios entregados por el paciente"
+    if (/estudios\s+entregados\s+por\s+el\s+paciente/i.test(linea)) {
+      dentroDeEstudiosEntregados = true;
+      paginasEstudiosEntregados.add(paginaActual);
+    }
+
+    // Detectar fin de sección (siguiente sección principal)
+    if (/(evoluci[oó]n|visita|alta\s+m[eé]dica|epicrisis|foja|cirug[íi]a)/i.test(linea) && 
+        !dentroDeExamenesComplementarios && !dentroDeEstudiosEntregados) {
+      dentroDeExamenesComplementarios = false;
+      dentroDeEstudiosEntregados = false;
+    }
+
+    // Si estamos dentro de exámenes complementarios, marcar páginas consecutivas
+    if (dentroDeExamenesComplementarios) {
+      paginasExamenesComplementarios.add(paginaActual);
+    }
+    if (dentroDeEstudiosEntregados) {
+      paginasEstudiosEntregados.add(paginaActual);
+    }
+  }
+
+  // Segunda pasada: extraer estudios
+  paginaActual = 1;
   const estudios: Estudio[] = [];
+  const sesionesKinesiologia: Array<{ hoja: number; linea: string }> = [];
+
   const tipoDetectado = (base: string, linea: string) => {
     const zona =
       linea.match(
@@ -665,7 +717,8 @@ function extraerEstudios(texto: string) {
       )?.[1] || "";
     return zona ? `${base} de ${zona}` : base;
   };
-  const pushEstudio = (categoria: CategoriaEstudio, tipo: string, linea: string) => {
+
+  const pushEstudio = (categoria: CategoriaEstudio, tipo: string, linea: string, numHoja: number) => {
     const fecha = linea.match(reFecha)?.[1] || null;
     const hora = linea.match(reHora)?.[1] || null;
     const informe_presente = reInforme.test(linea);
@@ -686,27 +739,49 @@ function extraerEstudios(texto: string) {
       resultado,
       informe_presente,
       advertencias,
+      numero_hoja: numHoja,
     });
   };
 
-  for (const lRaw of lineas) {
+  for (let i = 0; i < lineas.length; i++) {
+    const lRaw = lineas[i];
+    
+    // Detectar cambio de página
+    const matchPagina = lRaw.match(rePagina);
+    if (matchPagina) {
+      paginaActual = Number(matchPagina[1]);
+    }
+
     const l = lRaw.trim();
     if (!l) continue;
+
+    // Verificar si estamos en páginas de exámenes complementarios
+    const esExamenExterno = paginasExamenesComplementarios.has(paginaActual) || 
+                           paginasEstudiosEntregados.has(paginaActual);
+
+    // Si es examen externo, SKIP
+    if (esExamenExterno) continue;
+
+    // Detectar estudios
     for (const [re, label] of patronesImagenes) {
       if (re.test(l)) {
-        pushEstudio("Imagenes", label, l);
+        pushEstudio("Imagenes", label, l, paginaActual);
         break;
       }
     }
     for (const [re, label] of patronesLab) {
       if (re.test(l)) {
-        pushEstudio("Laboratorio", label, l);
+        pushEstudio("Laboratorio", label, l, paginaActual);
         break;
       }
     }
     for (const [re, label] of patronesProc) {
       if (re.test(l)) {
-        pushEstudio("Procedimientos", label, l);
+        // Caso especial: kinesiología - contar cada aparición en una página diferente
+        if (label === "Kinesiología") {
+          sesionesKinesiologia.push({ hoja: paginaActual, linea: l });
+        }
+        pushEstudio("Procedimientos", label, l, paginaActual);
         break;
       }
     }
@@ -716,6 +791,9 @@ function extraerEstudios(texto: string) {
   const visto = new Set<string>();
   const dedup: Estudio[] = [];
   for (const e of estudios) {
+    // Para kinesiología, no deduplicamos - cada página cuenta como sesión
+    if (e.tipo === "Kinesiología") continue;
+    
     const key = `${e.categoria}|${(e.tipo || "").toUpperCase()}|${e.fecha || "NA"}`;
     if (!visto.has(key)) {
       visto.add(key);
@@ -723,20 +801,44 @@ function extraerEstudios(texto: string) {
     }
   }
 
+  // Procesar sesiones de kinesiología: contar páginas diferentes
+  const paginasUnicasKinesiologia = new Set(sesionesKinesiologia.map(s => s.hoja));
+  const totalSesionesKinesiologia = paginasUnicasKinesiologia.size;
+
+  // Agregar sesiones de kinesiología como estudios individuales
+  paginasUnicasKinesiologia.forEach(hoja => {
+    dedup.push({
+      categoria: "Procedimientos",
+      tipo: "Kinesiología",
+      fecha: null,
+      hora: null,
+      lugar: null,
+      resultado: null,
+      informe_presente: false,
+      advertencias: ["sin informe", "sin fecha"],
+      numero_hoja: hoja,
+    });
+  });
+
   const conteo = {
     total: dedup.length,
     imagenes: dedup.filter((e) => e.categoria === "Imagenes").length,
     laboratorio: dedup.filter((e) => e.categoria === "Laboratorio").length,
     procedimientos: dedup.filter((e) => e.categoria === "Procedimientos").length,
+    kinesiologia: totalSesionesKinesiologia,
   };
 
   const erroresEstudios: string[] = [];
   for (const e of dedup) {
-    if (!e.informe_presente) {
+    if (!e.informe_presente && e.tipo !== "Kinesiología") {
       erroresEstudios.push(
-        `Estudio sin informe: [${e.categoria}] ${e.tipo}${e.fecha ? ` (${e.fecha})` : ""}`
+        `Estudio sin informe: [${e.categoria}] ${e.tipo}${e.fecha ? ` (${e.fecha})` : ""} (Hoja ${e.numero_hoja})`
       );
     }
+  }
+
+  if (totalSesionesKinesiologia === 0) {
+    erroresEstudios.push("No se registraron sesiones de kinesiología durante la internación");
   }
 
   return { estudios: dedup, erroresEstudios, conteo };
@@ -1071,6 +1173,7 @@ Deno.serve(async (req: Request) => {
       estudios,
       estudiosConteo,
       erroresEstudios,
+      sesionesKinesiologia: estudiosConteo.kinesiologia,
       comunicaciones,
       totalErrores,
       estado: totalErrores > 0 ? "Pendiente de corrección" : "Aprobado",
@@ -1104,6 +1207,7 @@ Deno.serve(async (req: Request) => {
         estudios_imagenes: estudiosConteo.imagenes,
         estudios_laboratorio: estudiosConteo.laboratorio,
         estudios_procedimientos: estudiosConteo.procedimientos,
+        sesiones_kinesiologia: estudiosConteo.kinesiologia,
         estudios, // JSON completo
         errores_estudios: erroresEstudios,
         errores_detalle: [
