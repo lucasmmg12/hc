@@ -1322,6 +1322,118 @@ Deno.serve(async (req: Request) => {
       console.error("Error guardando en BD:", error);
     }
 
+    // ✅ NUEVO: Guardar médicos de la foja quirúrgica
+    const medicosIds: { [key: string]: string } = {};
+
+    if (resultadosFoja.equipo_quirurgico && resultadosFoja.equipo_quirurgico.length > 0) {
+      const medicosToInsert = resultadosFoja.equipo_quirurgico.map(m => ({
+        auditoria_id: data?.[0]?.id,
+        nombre_completo: m.nombre,
+        rol: m.rol,
+        fecha_cirugia: resultadosFoja.fecha_cirugia || null,
+        nombre_archivo: nombreArchivo,
+        paciente_dni: datosPaciente.dni || "No encontrado",
+        paciente_nombre: datosPaciente.nombre || "No encontrado",
+      }));
+
+      const { data: medicosData, error: errorMedicos } = await supabase
+        .from("medicos_foja_quirurgica")
+        .insert(medicosToInsert)
+        .select("id, nombre_completo, rol");
+
+      if (errorMedicos) {
+        console.error("Error guardando médicos en BD:", errorMedicos);
+      } else {
+        // Crear mapa de nombre+rol → id para asignar errores
+        if (medicosData) {
+          medicosData.forEach(m => {
+            const key = `${m.nombre_completo}|${m.rol}`;
+            medicosIds[key] = m.id;
+          });
+        }
+      }
+    }
+
+    // ✅ NUEVO: Guardar errores asignados a médicos
+    const erroresMedicosToInsert: any[] = [];
+
+    // Función helper para agregar error
+    const agregarError = (nombre: string, rol: string, tipo: string, desc: string, severidad: string) => {
+      const key = `${nombre}|${rol}`;
+      const medicoId = medicosIds[key];
+      if (medicoId) {
+        erroresMedicosToInsert.push({
+          auditoria_id: data?.[0]?.id,
+          medico_id: medicoId,
+          nombre_medico: nombre,
+          rol_medico: rol,
+          tipo_error: tipo,
+          descripcion: desc,
+          severidad: severidad,
+        });
+      }
+    };
+
+    // 1. Errores de Foja Quirúrgica → asignar a cirujanos
+    if (resultadosFoja.errores && resultadosFoja.errores.length > 0) {
+      resultadosFoja.equipo_quirurgico
+        .filter(m => m.rol === 'cirujano')
+        .forEach(cirujano => {
+          resultadosFoja.errores.forEach(error => {
+            agregarError(cirujano.nombre, 'cirujano', 'Foja Quirúrgica', error, 'CRÍTICO');
+          });
+        });
+    }
+
+    // 2. Errores de Epicrisis → asignar a cirujanos
+    if (!pacienteInternado && erroresEpicrisis.length > 0) {
+      resultadosFoja.equipo_quirurgico
+        .filter(m => m.rol === 'cirujano')
+        .forEach(cirujano => {
+          erroresEpicrisis.forEach(error => {
+            agregarError(cirujano.nombre, 'cirujano', 'Epicrisis', error, 'MEDIA');
+          });
+        });
+    }
+
+    // 3. Errores de Alta Médica → asignar a cirujanos
+    if (!pacienteInternado && erroresAltaMedica.length > 0) {
+      resultadosFoja.equipo_quirurgico
+        .filter(m => m.rol === 'cirujano')
+        .forEach(cirujano => {
+          erroresAltaMedica.forEach(error => {
+            const severidad = /crítico/gi.test(error) ? 'CRÍTICO' : 'ALTA';
+            agregarError(cirujano.nombre, 'cirujano', 'Alta Médica', error, severidad);
+          });
+        });
+    }
+
+    // 4. Bisturí Armónico → asignar a cirujanos
+    if (resultadosFoja.bisturi_armonico === "SI") {
+      resultadosFoja.equipo_quirurgico
+        .filter(m => m.rol === 'cirujano')
+        .forEach(cirujano => {
+          agregarError(
+            cirujano.nombre,
+            'cirujano',
+            'Bisturí Armónico',
+            'Se utilizó bisturí armónico - Requiere autorización especial',
+            'CRÍTICO'
+          );
+        });
+    }
+
+    // Insertar todos los errores de médicos
+    if (erroresMedicosToInsert.length > 0) {
+      const { error: errorErroresMedicos } = await supabase
+        .from("errores_medicos")
+        .insert(erroresMedicosToInsert);
+
+      if (errorErroresMedicos) {
+        console.error("Error guardando errores de médicos:", errorErroresMedicos);
+      }
+    }
+
     return new Response(
       JSON.stringify({ success: true, resultado, auditoriaId: data?.[0]?.id }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
