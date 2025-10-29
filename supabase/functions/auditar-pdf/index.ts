@@ -1323,9 +1323,15 @@ Deno.serve(async (req: Request) => {
     }
 
     // ✅ NUEVO: Guardar médicos de la foja quirúrgica
+    console.log("DEBUG: Iniciando guardado de médicos...");
+    console.log("DEBUG: resultadosFoja completo:", resultadosFoja);
+    console.log("DEBUG: resultadosFoja.equipo_quirurgico existe?", !!resultadosFoja.equipo_quirurgico);
+    console.log("DEBUG: resultadosFoja.equipo_quirurgico length:", resultadosFoja.equipo_quirurgico?.length);
+    
     const medicosIds: { [key: string]: string } = {};
 
     if (resultadosFoja.equipo_quirurgico && resultadosFoja.equipo_quirurgico.length > 0) {
+      console.log("DEBUG: Hay equipo quirúrgico, procesando...");
       const medicosToInsert = resultadosFoja.equipo_quirurgico.map(m => ({
         auditoria_id: data?.[0]?.id,
         nombre_completo: m.nombre,
@@ -1336,10 +1342,16 @@ Deno.serve(async (req: Request) => {
         paciente_nombre: datosPaciente.nombre || "No encontrado",
       }));
 
+      console.log("DEBUG: equipo_quirurgico extraído:", resultadosFoja.equipo_quirurgico);
+      console.log("DEBUG: medicosToInsert a guardar:", medicosToInsert);
+      
       const { data: medicosData, error: errorMedicos } = await supabase
         .from("medicos_foja_quirurgica")
         .insert(medicosToInsert)
         .select("id, nombre_completo, rol");
+
+      console.log("DEBUG: resultado insert medicos:", medicosData);
+      console.log("DEBUG: error insert medicos:", errorMedicos);
 
       if (errorMedicos) {
         console.error("Error guardando médicos en BD:", errorMedicos);
@@ -1352,6 +1364,9 @@ Deno.serve(async (req: Request) => {
           });
         }
       }
+    } else {
+      console.log("DEBUG: NO hay equipo quirúrgico o está vacío");
+      console.log("DEBUG: resultadosFoja.equipo_quirurgico:", resultadosFoja.equipo_quirurgico);
     }
 
     // ✅ NUEVO: Guardar errores asignados a médicos
