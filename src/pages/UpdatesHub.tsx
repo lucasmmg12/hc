@@ -92,8 +92,8 @@ export function UpdatesHub() {
     <div className="max-w-6xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Actualizaciones</h2>
-          <p className="text-gray-600">Notas de cambios y novedades del proyecto</p>
+          <h2 className="text-3xl font-extrabold text-white tracking-tight">Actualizaciones</h2>
+          <p className="text-white">Notas de cambios y novedades del proyecto</p>
         </div>
         <div className="flex gap-2">
           <button
