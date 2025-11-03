@@ -88,13 +88,16 @@ export function Historial() {
   const formatDate = (dateString: string | null) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString('es-AR', {
+    return new Intl.DateTimeFormat('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    });
+      second: '2-digit',
+      hour12: false,
+    }).format(date);
   };
 
   const getEstadoBadge = (_estado: string, totalErrores: number) => {
