@@ -170,6 +170,7 @@ function App() {
         {currentPage === 'documentacion' && <Documentacion />}
         {currentPage === 'auditar' && <AuditarPDF />}
         {currentPage === 'historial' && <Historial />}
+        {currentPage === 'actualizaciones' && <UpdatesHub />}
       </main>
 
       <footer className="bg-gradient-to-br from-gray-900 via-gray-800 to-green-900 text-white py-12 mt-16">
