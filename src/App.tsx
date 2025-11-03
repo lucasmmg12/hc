@@ -3,8 +3,9 @@ import { FileText, Stethoscope, Menu, X, Instagram, Globe, MessageCircle, Linked
 import { Documentacion } from './pages/Documentacion';
 import { AuditarPDF } from './pages/AuditarPDF';
 import { Historial } from './pages/Historial';
+import { UpdatesHub } from './pages/UpdatesHub';
 
-type Page = 'documentacion' | 'auditar' | 'historial';
+type Page = 'documentacion' | 'auditar' | 'historial' | 'actualizaciones';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>('documentacion');
@@ -65,6 +66,19 @@ function App() {
                 <span className="flex items-center gap-2">
                   <History className="w-4 h-4" />
                   Historial
+                </span>
+              </button>
+              <button
+                onClick={() => setCurrentPage('actualizaciones')}
+                className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                  currentPage === 'actualizaciones'
+                    ? 'bg-green-600 text-white shadow-lg'
+                    : 'bg-white text-gray-700 hover:bg-green-50 border border-gray-200'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Actualizaciones
                 </span>
               </button>
             </nav>
@@ -129,6 +143,22 @@ function App() {
                 <span className="flex items-center gap-2">
                   <History className="w-4 h-4" />
                   Historial
+                </span>
+              </button>
+              <button
+                onClick={() => {
+                  setCurrentPage('actualizaciones');
+                  setMobileMenuOpen(false);
+                }}
+                className={`px-6 py-3 rounded-lg font-semibold transition-all text-left ${
+                  currentPage === 'actualizaciones'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-white text-gray-700 border border-gray-200'
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Actualizaciones
                 </span>
               </button>
             </nav>
