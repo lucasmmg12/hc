@@ -4,7 +4,7 @@ export function Documentacion() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-12 space-y-12">
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold text-gray-900 drop-shadow-sm">Sistema de Auditoría Médica</h1>
+        <h1 className="text-4xl font-bold text-white drop-shadow-sm">Sistema de Auditoría Médica</h1>
         <p className="text-xl text-green-700 font-semibold">Sanatorio Argentino - San Juan</p>
         <p className="text-lg text-gray-700 max-w-3xl mx-auto font-medium">
           Automatización inteligente de auditorías de historias clínicas para prevenir débitos de OSDE
