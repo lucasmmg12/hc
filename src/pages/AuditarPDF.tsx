@@ -127,26 +127,9 @@ export function AuditarPDF() {
         throw new Error(data.error || 'Error desconocido al procesar el PDF');
       }
 
-      // Normalizar fechas para visualización en AR con zona local
-      const dtf = new Intl.DateTimeFormat('es-AR', {
-        timeZone: 'America/Argentina/Buenos_Aires',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false,
-      });
-      const fmt = (s: string) => (s ? dtf.format(new Date(s)) : s);
-
-      const resultadoNormalizado: ResultadoAuditoria = {
-        ...data.resultado,
-        fechaIngreso: fmt(data.resultado.fechaIngreso),
-        fechaAlta: fmt(data.resultado.fechaAlta),
-      };
-
-      setResultado(resultadoNormalizado);
+      // Dejamos las fechas en ISO con offset que envía el backend
+      // para que los componentes las formateen (evitamos 'Invalid Date' por DD/MM)
+      setResultado(data.resultado);
       setAuditoriaId(data.auditoriaId || null);
     } catch (err) {
       console.error('Error completo:', err);
