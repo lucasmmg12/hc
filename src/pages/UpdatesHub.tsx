@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Loader2, Plus, Save } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
-import { Plus, Save, Loader2 } from 'lucide-react';
 
 type UpdateRow = {
   id: string;
@@ -25,26 +25,16 @@ export function UpdatesHub() {
     title: '',
     content_md: '',
     tags: '',
-    status: 'publicado' as 'publicado' | 'borrador'
+    status: 'publicado' as 'publicado' | 'borrador',
   });
-
-  const filtered = useMemo(() => {
-    const query = q.trim().toLowerCase();
-    if (!query) return items;
-    return items.filter(i =>
-      i.title.toLowerCase().includes(query) ||
-      i.content_md.toLowerCase().includes(query) ||
-      (i.tags || []).some(t => t.toLowerCase().includes(query))
-    );
-  }, [q, items]);
 
   const cargar = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('updates')
       .select('id,title,content_md,tags,status,created_at')
       .order('created_at', { ascending: false });
-    if (!error && data) setItems(data as UpdateRow[]);
+    setItems((data as UpdateRow[]) || []);
     setLoading(false);
   };
 
@@ -53,19 +43,17 @@ export function UpdatesHub() {
     setLoading(true);
     const tags = form.tags
       .split(',')
-      .map(t => t.trim())
+      .map((t) => t.trim())
       .filter(Boolean);
-    const { error } = await supabase.from('updates').insert({
+    await supabase.from('updates').insert({
       title: form.title.trim(),
       content_md: form.content_md.trim(),
       tags,
-      status: form.status
+      status: form.status,
     });
-    if (!error) {
-      setForm({ title: '', content_md: '', tags: '', status: 'publicado' });
-      setTab('listado');
-      await cargar();
-    }
+    setForm({ title: '', content_md: '', tags: '', status: 'publicado' });
+    setTab('listado');
+    await cargar();
     setLoading(false);
   };
 
@@ -73,22 +61,38 @@ export function UpdatesHub() {
     cargar();
   }, []);
 
+  const filtered = items.filter((i) => {
+    const query = q.trim().toLowerCase();
+    if (!query) return true;
+    return (
+      i.title.toLowerCase().includes(query) ||
+      i.content_md.toLowerCase().includes(query) ||
+      (i.tags || []).some((t) => t.toLowerCase().includes(query))
+    );
+  });
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-gray-900">Actualizaciones</h2>
         <div className="flex gap-2">
           <button
-            className={`px-4 py-2 rounded-lg border ${tab==='listado'?'bg-green-600 text-white border-green-600':'bg-white text-gray-700'}`}
+            className={`px-4 py-2 rounded-lg border ${
+              tab === 'listado' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700'
+            }`}
             onClick={() => setTab('listado')}
           >
             Listado
           </button>
           <button
-            className={`px-4 py-2 rounded-lg border ${tab==='nuevo'?'bg-green-600 text-white border-green-600':'bg-white text-gray-700'}`}
+            className={`px-4 py-2 rounded-lg border ${
+              tab === 'nuevo' ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700'
+            }`}
             onClick={() => setTab('nuevo')}
           >
-            <span className="inline-flex items-center gap-1"><Plus className="w-4 h-4" />Nuevo</span>
+            <span className="inline-flex items-center gap-1">
+              <Plus className="w-4 h-4" />Nuevo
+            </span>
           </button>
         </div>
       </div>
@@ -99,7 +103,7 @@ export function UpdatesHub() {
             placeholder="Buscar por título, contenido o tag..."
             className="w-full mb-4 px-3 py-2 border rounded-lg"
             value={q}
-            onChange={(e)=>setQ(e.target.value)}
+            onChange={(e) => setQ(e.target.value)}
           />
           {loading ? (
             <div className="flex items-center gap-2 text-gray-600">
@@ -116,13 +120,19 @@ export function UpdatesHub() {
                       <h3 className="font-semibold text-gray-900">{u.title}</h3>
                       <p className="text-sm text-gray-600 line-clamp-2">{u.content_md}</p>
                       <div className="mt-1 flex flex-wrap gap-2">
-                        {(u.tags || []).map(t=>(
-                          <span key={t} className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">{t}</span>
+                        {(u.tags || []).map((t) => (
+                          <span key={t} className="px-2 py-0.5 bg-green-100 text-green-700 rounded text-xs">
+                            {t}
+                          </span>
                         ))}
                       </div>
                     </div>
                     <div className="text-right">
-                      <span className={`text-xs px-2 py-1 rounded ${u.status==='publicado'?'bg-green-100 text-green-700':'bg-gray-100 text-gray-700'}`}>
+                      <span
+                        className={`text-xs px-2 py-1 rounded ${
+                          u.status === 'publicado' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                        }`}
+                      >
                         {u.status}
                       </span>
                       <div className="text-xs text-gray-500 mt-1">
@@ -143,26 +153,26 @@ export function UpdatesHub() {
             className="w-full px-3 py-2 border rounded-lg"
             placeholder="Título"
             value={form.title}
-            onChange={e=>setForm({...form, title: e.target.value})}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
           />
           <textarea
             className="w-full h-48 px-3 py-2 border rounded-lg"
             placeholder="Contenido (Markdown)"
             value={form.content_md}
-            onChange={e=>setForm({...form, content_md: e.target.value})}
+            onChange={(e) => setForm({ ...form, content_md: e.target.value })}
           />
           <input
             className="w-full px-3 py-2 border rounded-lg"
             placeholder="Tags (separadas por coma, ej: UI,Kinesiología)"
             value={form.tags}
-            onChange={e=>setForm({...form, tags: e.target.value})}
+            onChange={(e) => setForm({ ...form, tags: e.target.value })}
           />
           <div className="flex items-center gap-3">
             <label className="text-sm text-gray-700">Estado</label>
             <select
               className="border rounded px-2 py-1"
               value={form.status}
-              onChange={e=>setForm({...form, status: e.target.value as any})}
+              onChange={(e) => setForm({ ...form, status: e.target.value as 'publicado' | 'borrador' })}
             >
               <option value="publicado">Publicado</option>
               <option value="borrador">Borrador</option>
@@ -180,3 +190,5 @@ export function UpdatesHub() {
     </div>
   );
 }
+
+
