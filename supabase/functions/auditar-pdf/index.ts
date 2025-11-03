@@ -108,6 +108,17 @@ function makeDate(d: string, hms?: string): Date {
   return new Date(yyyy, mm - 1, dd, hh, mi, ss);
 }
 
+// Serializa en fecha y hora LOCAL con offset, evitando corrimientos de UTC
+function toLocalISO(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const offsetMinutes = -d.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const abs = Math.abs(offsetMinutes);
+  const offHH = pad(Math.floor(abs / 60));
+  const offMM = pad(abs % 60);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${offHH}:${offMM}`;
+}
+
 function extractIngresoAlta(text: string): { ingreso: Date | null; alta: Date | null } {
   let ingreso: Date | null = null;
   let alta: Date | null = null;
@@ -1178,8 +1189,8 @@ Deno.serve(async (req: Request) => {
     const resultado = {
       nombreArchivo,
       datosPaciente,
-      fechaIngreso: ingreso.toISOString(),
-      fechaAlta: fechaAlta.toISOString(),
+      fechaIngreso: toLocalISO(ingreso),
+      fechaAlta: toLocalISO(fechaAlta),
       pacienteInternado,
       diasHospitalizacion,
       erroresAdmision: datosPaciente.errores_admision,
@@ -1213,8 +1224,8 @@ Deno.serve(async (req: Request) => {
         dni_paciente: datosPaciente.dni || "No encontrado",
         obra_social: datosPaciente.obra_social || "No encontrada",
         habitacion: datosPaciente.habitacion || "No encontrada",
-        fecha_ingreso: ingreso.toISOString(),
-        fecha_alta: pacienteInternado ? null : fechaAlta.toISOString(),
+        fecha_ingreso: toLocalISO(ingreso),
+        fecha_alta: pacienteInternado ? null : toLocalISO(fechaAlta),
         total_errores: totalErrores,
         errores_admision: datosPaciente.errores_admision.length,
         errores_evoluciones: erroresEvolucion.length,
