@@ -846,19 +846,21 @@ function extraerEstudios(texto: string) {
   const paginasUnicasKinesiologia = new Set(sesionesKinesiologia.map(s => s.hoja));
   const totalSesionesKinesiologia = paginasUnicasKinesiologia.size;
 
-  paginasUnicasKinesiologia.forEach(hoja => {
+  // En lugar de generar múltiples entradas (una por hoja) para Kinesiología,
+  // agregamos un único resumen visible en la UI.
+  if (totalSesionesKinesiologia > 0) {
     dedup.push({
       categoria: "Procedimientos",
-      tipo: "Kinesiología",
+      tipo: `Sesiones de Kinesiología = ${totalSesionesKinesiologia}`,
       fecha: null,
       hora: null,
       lugar: null,
       resultado: null,
       informe_presente: true,
       advertencias: [],
-      numero_hoja: hoja,
+      numero_hoja: Math.min(...Array.from(paginasUnicasKinesiologia)),
     });
-  });
+  }
 
   const conteo = {
     total: dedup.length,
