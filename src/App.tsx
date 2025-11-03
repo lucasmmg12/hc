@@ -23,7 +23,7 @@ function App() {
                 className="h-16 w-16 object-contain"
               />
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Auditoría Médica</h1>
+                <h1 className="text-xl font-bold text-white-900">Auditoría Médica</h1>
                 <p className="text-sm text-green-600 font-medium">Donde tus ideas crecen</p>
               </div>
             </div>
