@@ -12,7 +12,7 @@ function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-50" style={{ backgroundImage: 'url("/logo-main.png")', backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}>
+    <div className="min-h-screen bg-gray-50" style={{ backgroundImage: 'url("/logogrow.png")', backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}>
       <header className="bg-white/95 backdrop-blur-sm shadow-lg sticky top-0 z-50 border-b-2 border-green-500">
         <div className="max-w-7xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
