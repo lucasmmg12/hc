@@ -27,13 +27,27 @@ export function UpdatesHub() {
     tags: '',
     status: 'publicado' as 'publicado' | 'borrador',
   });
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
+
+  const ensureAuth = async () => {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session) {
+      // Requiere habilitar "Anonymous Sign-ins" en Supabase Auth
+      await supabase.auth.signInAnonymously();
+    }
+  };
 
   const cargar = async () => {
     setLoading(true);
-    const { data } = await supabase
+    setErrorMsg(null);
+    const { data, error } = await supabase
       .from('updates')
       .select('id,title,content_md,tags,status,created_at')
       .order('created_at', { ascending: false });
+    if (error) {
+      setErrorMsg(error.message);
+    }
     setItems((data as UpdateRow[]) || []);
     setLoading(false);
   };
@@ -41,24 +55,35 @@ export function UpdatesHub() {
   const guardar = async () => {
     if (!form.title.trim() || !form.content_md.trim()) return;
     setLoading(true);
+    setErrorMsg(null);
+    setOkMsg(null);
     const tags = form.tags
       .split(',')
       .map((t) => t.trim())
       .filter(Boolean);
-    await supabase.from('updates').insert({
+    const { error } = await supabase.from('updates').insert({
       title: form.title.trim(),
       content_md: form.content_md.trim(),
       tags,
       status: form.status,
     });
+    if (error) {
+      setErrorMsg(error.message);
+      setLoading(false);
+      return;
+    }
     setForm({ title: '', content_md: '', tags: '', status: 'publicado' });
     setTab('listado');
     await cargar();
+    setOkMsg('Actualización guardada');
     setLoading(false);
   };
 
   useEffect(() => {
-    cargar();
+    (async () => {
+      await ensureAuth();
+      await cargar();
+    })();
   }, []);
 
   const filtered = items.filter((i) => {
@@ -99,6 +124,9 @@ export function UpdatesHub() {
 
       {tab === 'listado' && (
         <div className="bg-white rounded-xl shadow p-6">
+          {errorMsg && (
+            <div className="mb-3 p-2 rounded bg-red-50 text-red-700 text-sm">{errorMsg}</div>
+          )}
           <input
             placeholder="Buscar por título, contenido o tag..."
             className="w-full mb-4 px-3 py-2 border rounded-lg"
@@ -149,6 +177,12 @@ export function UpdatesHub() {
 
       {tab === 'nuevo' && (
         <div className="bg-white rounded-xl shadow p-6 space-y-3">
+          {errorMsg && (
+            <div className="p-2 rounded bg-red-50 text-red-700 text-sm">{errorMsg}</div>
+          )}
+          {okMsg && (
+            <div className="p-2 rounded bg-green-50 text-green-700 text-sm">{okMsg}</div>
+          )}
           <input
             className="w-full px-3 py-2 border rounded-lg"
             placeholder="Título"
