@@ -779,8 +779,8 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
   // Analizar cada ocurrencia para encontrar foja quirúrgicas válidas
   for (const ocurrencia of ocurrencias) {
     const inicio = ocurrencia.index;
-    // Analizar un bloque más amplio (2000 caracteres) para detectar tipo de procedimiento y equipo
-    const trozoValidacion = texto.substring(inicio, Math.min(inicio + 2000, texto.length));
+    // Analizar un bloque más amplio (4000 caracteres) para detectar tipo de procedimiento y equipo
+    const trozoValidacion = texto.substring(inicio, Math.min(inicio + 4000, texto.length));
     
     // Detectar si es una endoscopía o procedimiento endoscópico
     const esEndoscopia = /\b(endoscop[ií]a|gastroscop[ií]a|colonoscop[ií]a|broncoscop[ií]a|videoesofagogastr[oó]gica|videoesofagogastroduodenoscop[ií]a|video\s*esofagogastr[oó]gica)\b/i.test(trozoValidacion);
@@ -950,6 +950,17 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
             }
           }
         }
+        // Si aún no se encontró fecha, buscar en todo el bloque de la foja
+        if (!fOK) {
+          for (const r of pf) {
+            const f = trozo.match(r);
+            if (f) {
+              foja.fecha_cirugia = f[1];
+              fOK = true;
+              break;
+            }
+          }
+        }
         if (!fOK)
           foja.errores.push(
             "❌ CRÍTICO: Fecha de cirugía no encontrada en foja quirúrgica"
@@ -957,10 +968,21 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
         break;
       }
     }
-    if (!gotInicio)
+    // Si no se encontró hora de inicio, intentar buscar fecha de todas formas
+    if (!gotInicio) {
+      // Buscar fecha en todo el bloque aunque no haya hora
+      const pf = [/fecha[:\s]*(\d{1,2}\/\d{1,2}\/\d{4})/i, /(\d{1,2}\/\d{1,2}\/\d{4})/];
+      for (const r of pf) {
+        const f = trozo.match(r);
+        if (f) {
+          foja.fecha_cirugia = f[1];
+          break;
+        }
+      }
       foja.errores.push(
         "❌ CRÍTICO: Hora de comienzo no encontrada en foja quirúrgica"
       );
+    }
 
     // Buscar hora de fin
     const patronesHoraFin = [
@@ -1012,7 +1034,7 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
   // Si no se encontró ninguna foja válida pero había ocurrencias, agregar error
   if (resultados.fojas.length === 0 && ocurrencias.length > 0) {
     resultados.errores_generales.push(
-      "⚠️ ADVERTENCIA: Se encontraron menciones de 'foja quirúrgica' pero ninguna tiene Anestesista o equipo quirúrgico completo dentro de los próximos 2000 caracteres"
+      "⚠️ ADVERTENCIA: Se encontraron menciones de 'foja quirúrgica' pero ninguna tiene Anestesista o equipo quirúrgico completo dentro de los próximos 4000 caracteres"
     );
   }
 
@@ -1039,8 +1061,19 @@ function generarListaDiasInternacion(
   const fechasCirugia = new Set<string>();
   for (const foja of resultadosFoja.fojas) {
     if (foja.fecha_cirugia) {
-      // Normalizar formato de fecha (DD/MM/YYYY)
-      fechasCirugia.add(foja.fecha_cirugia);
+      // Normalizar formato de fecha (DD/MM/YYYY) - convertir 5/11/2025 a 05/11/2025
+      const partes = foja.fecha_cirugia.split('/');
+      if (partes.length === 3) {
+        const dia = partes[0].padStart(2, '0');
+        const mes = partes[1].padStart(2, '0');
+        const anio = partes[2];
+        const fechaNormalizada = `${dia}/${mes}/${anio}`;
+        fechasCirugia.add(fechaNormalizada);
+        // También agregar la fecha original por si acaso
+        fechasCirugia.add(foja.fecha_cirugia);
+      } else {
+        fechasCirugia.add(foja.fecha_cirugia);
+      }
     }
   }
   
