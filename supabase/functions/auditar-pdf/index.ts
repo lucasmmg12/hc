@@ -779,36 +779,42 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
   // Analizar cada ocurrencia para encontrar foja quirúrgicas válidas
   for (const ocurrencia of ocurrencias) {
     const inicio = ocurrencia.index;
-    // Analizar un bloque más amplio (1500 caracteres) para detectar tipo de procedimiento
-    const trozoValidacion = texto.substring(inicio, Math.min(inicio + 1500, texto.length));
+    // Analizar un bloque más amplio (2000 caracteres) para detectar tipo de procedimiento y equipo
+    const trozoValidacion = texto.substring(inicio, Math.min(inicio + 2000, texto.length));
     
     // Detectar si es una endoscopía o procedimiento endoscópico
     const esEndoscopia = /\b(endoscop[ií]a|gastroscop[ií]a|colonoscop[ií]a|broncoscop[ií]a|videoesofagogastr[oó]gica|videoesofagogastroduodenoscop[ií]a|video\s*esofagogastr[oó]gica)\b/i.test(trozoValidacion);
     
+    // Buscar miembros del equipo quirúrgico en el bloque de validación
+    const tieneAnestesistaCerca = /anestesista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i.test(trozoValidacion);
+    const tieneEndoscopistaCerca = /endoscopista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i.test(trozoValidacion);
+    const tieneCirujanoCerca = /cirujano[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i.test(trozoValidacion);
+    
     let esValida = false;
     let rangoBusqueda = 5000; // Rango por defecto para cirugías normales
     
-    if (esEndoscopia) {
-      // Para endoscopías: validación más flexible
-      // Solo requiere Anestesista O Endoscopista O Cirujano (no necesariamente todos)
-      const tieneAnestesistaCerca = /anestesista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i.test(trozoValidacion);
-      const tieneEndoscopistaCerca = /endoscopista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i.test(trozoValidacion);
-      const tieneCirujanoCerca = /cirujano[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i.test(trozoValidacion);
-      
-      // Para endoscopías: aceptar si tiene al menos uno de estos
-      if (tieneAnestesistaCerca || tieneEndoscopistaCerca || tieneCirujanoCerca) {
-        esValida = true;
+    // Validación flexible: aceptar si tiene Anestesista (para procedimientos menores)
+    // O si tiene Cirujano + Anestesista (para cirugías mayores)
+    if (tieneAnestesistaCerca) {
+      // Si tiene Anestesista, es válida (cubre endoscopías y procedimientos menores)
+      esValida = true;
+      if (esEndoscopia) {
         rangoBusqueda = 3000; // Reducir rango para endoscopías (son más cortas)
+      } else if (!tieneCirujanoCerca) {
+        // Si no es endoscopía pero tampoco tiene Cirujano, probablemente es procedimiento menor
+        rangoBusqueda = 3000; // Usar rango más corto
       }
-    } else {
-      // Para cirugías normales: validación estricta (requiere Cirujano + Anestesista)
-      const tieneCirujanoCerca = /cirujano[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i.test(trozoValidacion);
-      const tieneAnestesistaCerca = /anestesista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i.test(trozoValidacion);
-      
-      // Si no tiene ambos cerca, es solo una mención/referencia, ignorarla
-      if (tieneCirujanoCerca && tieneAnestesistaCerca) {
+    } else if (tieneCirujanoCerca && tieneEndoscopistaCerca) {
+      // Caso especial: Cirujano + Endoscopista (sin Anestesista explícito)
+      esValida = true;
+    } else if (tieneCirujanoCerca) {
+      // Si solo tiene Cirujano pero no Anestesista, podría ser una referencia
+      // Pero si es endoscopía, aceptarla
+      if (esEndoscopia) {
         esValida = true;
+        rangoBusqueda = 3000;
       }
+      // Para cirugías normales sin Anestesista, no es válida (solo referencia)
     }
     
     // Si no es válida, ignorar esta ocurrencia
@@ -981,12 +987,20 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
     
     let esValidaFinal = false;
     
-    if (esEndoscopia) {
-      // Para endoscopías: aceptar si tiene Anestesista O Endoscopista O Cirujano
-      esValidaFinal = tieneAnestesista || tieneEndoscopista || tieneCirujano;
-    } else {
-      // Para cirugías normales: requiere Cirujano + Anestesista
-      esValidaFinal = tieneCirujano && tieneAnestesista;
+    // Validación flexible: aceptar si tiene Anestesista (procedimientos menores)
+    // O si tiene Cirujano + Anestesista (cirugías mayores)
+    if (tieneAnestesista) {
+      // Si tiene Anestesista, es válida (cubre la mayoría de casos)
+      esValidaFinal = true;
+    } else if (tieneCirujano && tieneEndoscopista) {
+      // Caso especial: Cirujano + Endoscopista
+      esValidaFinal = true;
+    } else if (tieneCirujano && esEndoscopia) {
+      // Endoscopía con Cirujano pero sin Anestesista explícito
+      esValidaFinal = true;
+    } else if (tieneCirujano && tieneAnestesista) {
+      // Cirugía mayor: requiere ambos
+      esValidaFinal = true;
     }
     
     // Solo agregar la foja si cumple con los requisitos
@@ -998,7 +1012,7 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
   // Si no se encontró ninguna foja válida pero había ocurrencias, agregar error
   if (resultados.fojas.length === 0 && ocurrencias.length > 0) {
     resultados.errores_generales.push(
-      "⚠️ ADVERTENCIA: Se encontraron menciones de 'foja quirúrgica' pero ninguna cumple con los requisitos mínimos (para cirugías: Cirujano + Anestesista; para endoscopías: Anestesista, Endoscopista o Cirujano)"
+      "⚠️ ADVERTENCIA: Se encontraron menciones de 'foja quirúrgica' pero ninguna tiene Anestesista o equipo quirúrgico completo dentro de los próximos 2000 caracteres"
     );
   }
 
