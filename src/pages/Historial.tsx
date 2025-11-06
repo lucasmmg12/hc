@@ -321,9 +321,10 @@ export function Historial() {
                     <th className="px-6 py-4 text-left text-sm font-bold">Fecha Auditoría</th>
                     <th className="px-6 py-4 text-left text-sm font-bold">Paciente</th>
                     <th className="px-6 py-4 text-left text-sm font-bold">DNI</th>
-                    <th className="px-6 py-4 text-left text-sm font-bold">Archivo</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold">Obra Social</th>
                     <th className="px-6 py-4 text-center text-sm font-bold">Errores</th>
                     <th className="px-6 py-4 text-center text-sm font-bold">Estado</th>
+                    <th className="px-6 py-4 text-left text-sm font-bold">Archivo</th>
                     <th className="px-6 py-4 text-center text-sm font-bold">Acciones</th>
                   </tr>
                 </thead>
@@ -337,8 +338,8 @@ export function Historial() {
                         {auditoria.nombre_paciente}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{auditoria.dni_paciente}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
-                        {auditoria.nombre_archivo}
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        {auditoria.obra_social || 'N/A'}
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span
@@ -355,6 +356,9 @@ export function Historial() {
                       </td>
                       <td className="px-6 py-4 text-center">
                         {getEstadoBadge(auditoria.estado, auditoria.total_errores)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">
+                        {auditoria.nombre_archivo}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-center gap-2">
