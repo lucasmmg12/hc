@@ -461,36 +461,101 @@ function extraerEvolucionesMejorado(
       const fechaDiaInicio = startOfDay(fechaDia);
       const fechaDiaFin = new Date(fechaDiaInicio.getTime() + MS_DIA - 1);
 
-      // Buscar en el texto si hay alguna mención de esta fecha junto con una evolución
-      // Buscar patrones de fecha cerca de patrones de evolución
-      const patronFecha = new RegExp(
-        `(?:${fechaStr.replace(/\//g, "[/\\s]")}|${d.padStart(2, "0")}[\\s/]+${m.padStart(2, "0")}[\\s/]+${a})`,
-        "gi"
-      );
+      // Buscar evolución para este día de múltiples formas:
+      // 1. Buscar "visita" con esta fecha (método original que funcionaba)
+      // 2. Buscar fecha cerca de patrones de evolución
+      // 3. Buscar patrones de evolución y luego verificar si hay fecha cerca
       
       let tieneEvolucion = false;
-      let matchFecha;
       
-      // Buscar todas las ocurrencias de la fecha en el texto
-      while ((matchFecha = patronFecha.exec(textoNormalizado)) !== null) {
-        const posicionFecha = matchFecha.index;
-        // Buscar en un rango de 2000 caracteres alrededor de la fecha
-        const inicioBusqueda = Math.max(0, posicionFecha - 500);
-        const finBusqueda = Math.min(
-          textoNormalizado.length,
-          posicionFecha + matchFecha[0].length + 1500
-        );
-        const bloqueAlrededor = textoNormalizado.substring(inicioBusqueda, finBusqueda);
-        
-        // Verificar si en este bloque hay algún patrón de evolución
+      // Método 1: Buscar "visita" con esta fecha (más confiable)
+      const patronVisitaConFecha = new RegExp(
+        `visita[\\s_]+${fechaStr.replace(/\//g, "[\\s/]")}(?:[\\s]+\\d{1,2}:\\d{2})?`,
+        "gi"
+      );
+      let matchVisita;
+      while ((matchVisita = patronVisitaConFecha.exec(textoNormalizado)) !== null) {
+        const posicionVisita = matchVisita.index;
+        const bloqueVisita = textoNormalizado.substring(posicionVisita, posicionVisita + 2000);
         for (const patronEvol of patronesEvolDiaria) {
-          if (patronEvol.test(bloqueAlrededor)) {
+          if (patronEvol.test(bloqueVisita)) {
             tieneEvolucion = true;
             diasConEvolucion.add(fechaStr);
             break;
           }
         }
         if (tieneEvolucion) break;
+      }
+      
+      // Método 2: Buscar fecha cerca de evoluciones (si no se encontró con método 1)
+      if (!tieneEvolucion) {
+        // Variaciones del formato de fecha
+        const variacionesFecha = [
+          fechaStr, // DD/MM/YYYY
+          `${d}/${m}/${a}`, // Sin padding
+          `${d.padStart(2, "0")}/${m.padStart(2, "0")}/${a}`, // Con padding
+          `${d}\\s*/\\s*${m}\\s*/\\s*${a}`, // Con espacios opcionales
+        ];
+        
+        for (const fechaVariante of variacionesFecha) {
+          const patronFecha = new RegExp(
+            `(?:${fechaVariante.replace(/\//g, "[\\s/]")})`,
+            "gi"
+          );
+          let matchFecha;
+          
+          while ((matchFecha = patronFecha.exec(textoNormalizado)) !== null) {
+            const posicionFecha = matchFecha.index;
+            // Buscar en un rango más amplio (3000 caracteres) alrededor de la fecha
+            const inicioBusqueda = Math.max(0, posicionFecha - 1000);
+            const finBusqueda = Math.min(
+              textoNormalizado.length,
+              posicionFecha + matchFecha[0].length + 2000
+            );
+            const bloqueAlrededor = textoNormalizado.substring(inicioBusqueda, finBusqueda);
+            
+            // Verificar si en este bloque hay algún patrón de evolución
+            for (const patronEvol of patronesEvolDiaria) {
+              if (patronEvol.test(bloqueAlrededor)) {
+                tieneEvolucion = true;
+                diasConEvolucion.add(fechaStr);
+                break;
+              }
+            }
+            if (tieneEvolucion) break;
+          }
+          if (tieneEvolucion) break;
+        }
+      }
+      
+      // Método 3: Buscar evoluciones y luego verificar fecha cerca (último recurso)
+      if (!tieneEvolucion) {
+        for (const patronEvol of patronesEvolDiaria) {
+          let matchEvol;
+          const regexEvol = new RegExp(patronEvol.source, patronEvol.flags + 'g');
+          while ((matchEvol = regexEvol.exec(textoNormalizado)) !== null) {
+            const posicionEvol = matchEvol.index;
+            // Buscar fecha en un rango alrededor de la evolución
+            const inicioBusqueda = Math.max(0, posicionEvol - 1500);
+            const finBusqueda = Math.min(
+              textoNormalizado.length,
+              posicionEvol + matchEvol[0].length + 500
+            );
+            const bloqueAlrededor = textoNormalizado.substring(inicioBusqueda, finBusqueda);
+            
+            // Buscar la fecha en este bloque
+            const patronFechaEnBloque = new RegExp(
+              `(?:${fechaStr.replace(/\//g, "[\\s/]")}|${d}[\\s/]+${m}[\\s/]+${a})`,
+              "gi"
+            );
+            if (patronFechaEnBloque.test(bloqueAlrededor)) {
+              tieneEvolucion = true;
+              diasConEvolucion.add(fechaStr);
+              break;
+            }
+          }
+          if (tieneEvolucion) break;
+        }
       }
 
       // Si no se encontró evolución para este día, verificar si es día de admisión o alta
@@ -1460,7 +1525,30 @@ Deno.serve(async (req: Request) => {
       erroresAltaMedica,
       erroresEpicrisis,
       erroresFoja: todosErroresFoja,
-      resultadosFoja,
+      // Mantener compatibilidad con frontend: estructura híbrida (nueva + antigua)
+      resultadosFoja: {
+        // Nueva estructura (array de foja) - para futuras mejoras
+        fojas: resultadosFoja.fojas,
+        errores_generales: resultadosFoja.errores_generales,
+        // Estructura antigua para compatibilidad con frontend actual
+        bisturi_armonico: resultadosFoja.fojas.length > 0 
+          ? resultadosFoja.fojas[0].bisturi_armonico 
+          : (resultadosFoja.fojas.some(f => f.bisturi_armonico === "SI") ? "SI" : 
+             resultadosFoja.fojas.some(f => f.bisturi_armonico === "NO") ? "NO" : null),
+        equipo_quirurgico: resultadosFoja.fojas.length > 0 
+          ? resultadosFoja.fojas[0].equipo_quirurgico 
+          : [],
+        fecha_cirugia: resultadosFoja.fojas.length > 0 
+          ? resultadosFoja.fojas[0].fecha_cirugia 
+          : null,
+        hora_inicio: resultadosFoja.fojas.length > 0 
+          ? resultadosFoja.fojas[0].hora_inicio 
+          : null,
+        hora_fin: resultadosFoja.fojas.length > 0 
+          ? resultadosFoja.fojas[0].hora_fin 
+          : null,
+        errores: todosErroresFoja,
+      } as any, // Type assertion para permitir estructura híbrida
       doctores,
       estudios,
       estudiosConteo,
