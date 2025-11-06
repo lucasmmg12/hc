@@ -50,6 +50,12 @@ interface ResultadoAuditoria {
   }>;
   totalErrores: number;
   estado: string;
+  listaDiasInternacion?: Array<{
+    fecha: string;
+    tieneEvolucion: boolean;
+    tieneFojaQuirurgica: boolean;
+    estudios: Array<{ tipo: string; categoria: string }>;
+  }>;
 }
 
 export function AuditarPDF() {
@@ -217,6 +223,82 @@ export function AuditarPDF() {
               Auditar otro archivo
             </button>
           </div>
+
+          {/* Tabla de días de internación */}
+          {resultado.listaDiasInternacion && resultado.listaDiasInternacion.length > 0 && (
+            <div className="bg-white/95 backdrop-blur-sm rounded-xl shadow-xl p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-4">Días de Internación</h2>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Día
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Evolución Médica
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Foja Quirúrgica
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Otros Estudios
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {resultado.listaDiasInternacion.map((dia, idx) => {
+                      const esDiaAdmision = idx === 0;
+                      const esDiaAlta = idx === resultado.listaDiasInternacion!.length - 1;
+                      return (
+                        <tr key={dia.fecha} className={!dia.tieneEvolucion && !esDiaAdmision && !esDiaAlta ? 'bg-red-50' : ''}>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {dia.fecha}
+                            {esDiaAdmision && <span className="ml-2 text-xs text-gray-500">(Admisión)</span>}
+                            {esDiaAlta && <span className="ml-2 text-xs text-gray-500">(Alta)</span>}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            {esDiaAdmision ? (
+                              <span className="text-gray-500">Admisión</span>
+                            ) : esDiaAlta ? (
+                              <span className="text-gray-500">Alta</span>
+                            ) : dia.tieneEvolucion ? (
+                              <span className="text-green-600 font-semibold">✓ Sí</span>
+                            ) : (
+                              <span className="text-red-600 font-semibold">✗ No (ERROR)</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm">
+                            {dia.tieneFojaQuirurgica ? (
+                              <span className="text-green-600 font-semibold">✓ Sí</span>
+                            ) : (
+                              <span className="text-gray-400">No</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {dia.estudios.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {dia.estudios.map((estudio, eIdx) => (
+                                  <span
+                                    key={eIdx}
+                                    className="inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
+                                  >
+                                    {estudio.tipo}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           <InformeAuditoria resultado={resultado} auditoriaId={auditoriaId || undefined} />
         </div>
