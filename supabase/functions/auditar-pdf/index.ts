@@ -426,6 +426,109 @@ function extraerEvolucionesMejorado(
     } catch {}
   }
 
+  // ========= NUEVO: Verificación día por día de todos los días de internación =========
+  // Generar todos los días desde ingreso hasta alta
+  const todosLosDias: string[] = [];
+  const inicio = startOfDay(fechaAdmisionDate);
+  const fin = startOfDay(fechaAltaDate);
+  const MS_DIA = 1000 * 60 * 60 * 24;
+  
+  let fechaActual = new Date(inicio);
+  while (fechaActual <= fin) {
+    const dia = String(fechaActual.getDate()).padStart(2, "0");
+    const mes = String(fechaActual.getMonth() + 1).padStart(2, "0");
+    const anio = fechaActual.getFullYear();
+    todosLosDias.push(`${dia}/${mes}/${anio}`);
+    fechaActual = new Date(fechaActual.getTime() + MS_DIA);
+  }
+
+  // Para cada día del rango, buscar si existe evolución en el texto
+  const diasVerificados = new Set<string>();
+  
+  for (const fechaStr of todosLosDias) {
+    // Evitar duplicar errores ya reportados por la lógica anterior
+    if (diasVerificados.has(fechaStr)) continue;
+    diasVerificados.add(fechaStr);
+
+    try {
+      const [d, m, a] = fechaStr.split("/");
+      const fechaDia = new Date(`${a}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+      const fechaDiaInicio = startOfDay(fechaDia);
+      const fechaDiaFin = new Date(fechaDiaInicio.getTime() + MS_DIA - 1);
+
+      // Buscar en el texto si hay alguna mención de esta fecha junto con una evolución
+      // Buscar patrones de fecha cerca de patrones de evolución
+      const patronFecha = new RegExp(
+        `(?:${fechaStr.replace(/\//g, "[/\\s]")}|${d.padStart(2, "0")}[\\s/]+${m.padStart(2, "0")}[\\s/]+${a})`,
+        "gi"
+      );
+      
+      let tieneEvolucion = false;
+      let matchFecha;
+      
+      // Buscar todas las ocurrencias de la fecha en el texto
+      while ((matchFecha = patronFecha.exec(textoNormalizado)) !== null) {
+        const posicionFecha = matchFecha.index;
+        // Buscar en un rango de 2000 caracteres alrededor de la fecha
+        const inicioBusqueda = Math.max(0, posicionFecha - 500);
+        const finBusqueda = Math.min(
+          textoNormalizado.length,
+          posicionFecha + matchFecha[0].length + 1500
+        );
+        const bloqueAlrededor = textoNormalizado.substring(inicioBusqueda, finBusqueda);
+        
+        // Verificar si en este bloque hay algún patrón de evolución
+        for (const patronEvol of patronesEvolDiaria) {
+          if (patronEvol.test(bloqueAlrededor)) {
+            tieneEvolucion = true;
+            diasConEvolucion.add(fechaStr);
+            break;
+          }
+        }
+        if (tieneEvolucion) break;
+      }
+
+      // Si no se encontró evolución para este día, verificar si es día de admisión o alta
+      if (!tieneEvolucion && !diasConEvolucion.has(fechaStr)) {
+        const esDiaAdmision =
+          fechaDiaInicio.getTime() === startOfDay(fechaAdmisionDate).getTime();
+        const esDiaAlta =
+          fechaDiaInicio.getTime() === startOfDay(fechaAltaDate).getTime();
+
+        if (esDiaAdmision) {
+          // Día de admisión: generalmente no requiere evolución diaria
+          // No agregar error
+        } else if (esDiaAlta) {
+          // Día de alta: verificar si ya se agregó advertencia
+          const yaTieneAdvertencia = advertencias.some(
+            (a) => a.fecha === fechaStr && a.tipo === "Día de alta sin evolución"
+          );
+          if (!yaTieneAdvertencia) {
+            advertencias.push({
+              tipo: "Día de alta sin evolución",
+              descripcion: `⚠️ ADVERTENCIA: ${fechaStr} - Día de alta, usualmente no requiere evolución diaria`,
+              fecha: fechaStr,
+            });
+          }
+        } else {
+          // Día intermedio sin evolución: error crítico
+          const nombreEvolucion = estaEnUCI
+            ? "'UCI - Hoja de Evolucion' o 'Evolución médica diaria'"
+            : "'Evolución médica diaria'";
+          
+          // Verificar que no se haya agregado ya este error
+          const yaTieneError = errores.some((e) => e.includes(fechaStr));
+          if (!yaTieneError) {
+            errores.push(`❌ CRÍTICO: ${fechaStr} - Falta ${nombreEvolucion}`);
+          }
+        }
+      }
+    } catch (error) {
+      // Ignorar errores de parsing de fecha
+    }
+  }
+  // ========= FIN NUEVO =========
+
   return { errores, evolucionesRepetidas, advertencias };
 }
 
