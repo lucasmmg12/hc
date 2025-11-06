@@ -758,8 +758,19 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
     }
   }
 
+  // Filtrar ocurrencias duplicadas muy cercanas (probablemente la misma foja)
+  ocurrencias.sort((a, b) => a.index - b.index);
+  const ocurrenciasFiltradas: Array<{ patron: RegExp; index: number }> = [];
+  for (let i = 0; i < ocurrencias.length; i++) {
+    const actual = ocurrencias[i];
+    // Si hay una ocurrencia anterior muy cerca (menos de 200 caracteres), ignorar esta
+    if (i === 0 || actual.index - ocurrencias[i - 1].index > 200) {
+      ocurrenciasFiltradas.push(actual);
+    }
+  }
+
   // Si no se encontró ninguna ocurrencia, verificar con indicadores
-  if (ocurrencias.length === 0) {
+  if (ocurrenciasFiltradas.length === 0) {
     const indicadores = [
       /cirujano[:\s]*([A-Z][A-Z\s,]+)/i,
       /anestesista[:\s]*([A-Z][A-Z\s,]+)/i,
@@ -777,8 +788,32 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
   }
 
   // Analizar cada ocurrencia para encontrar foja quirúrgicas válidas
-  for (const ocurrencia of ocurrencias) {
+  for (const ocurrencia of ocurrenciasFiltradas) {
     const inicio = ocurrencia.index;
+    
+    // Buscar fecha ANTES de "foja quirúrgica" (hasta 3000 caracteres antes)
+    const inicioBusqueda = Math.max(0, inicio - 3000);
+    const bloqueAnterior = texto.substring(inicioBusqueda, inicio);
+    
+    // Buscar patrones de fecha en el bloque anterior (visita, intervención planificada, etc.)
+    const patronesFechaAnterior = [
+      /visita\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2})/i,
+      /intervenci[oó]n\s+planificada\s+para\s+(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2})/i,
+      /(\d{1,2}\/\d{1,2}\/\d{4})\s+(\d{1,2}:\d{2})/i, // Fecha y hora juntas
+    ];
+    
+    let fechaEncontradaAntes: string | null = null;
+    let horaEncontradaAntes: string | null = null;
+    
+    for (const patron of patronesFechaAnterior) {
+      const match = bloqueAnterior.match(patron);
+      if (match) {
+        fechaEncontradaAntes = match[1];
+        horaEncontradaAntes = match[2] || null;
+        break;
+      }
+    }
+    
     // Analizar un bloque más amplio (4000 caracteres) para detectar tipo de procedimiento y equipo
     const trozoValidacion = texto.substring(inicio, Math.min(inicio + 4000, texto.length));
     
@@ -983,6 +1018,14 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
         "❌ CRÍTICO: Hora de comienzo no encontrada en foja quirúrgica"
       );
     }
+    
+    // Usar fecha y hora encontradas ANTES de "foja quirúrgica" si no se encontraron en el bloque
+    if (fechaEncontradaAntes && !foja.fecha_cirugia) {
+      foja.fecha_cirugia = fechaEncontradaAntes;
+    }
+    if (horaEncontradaAntes && !foja.hora_inicio) {
+      foja.hora_inicio = horaEncontradaAntes;
+    }
 
     // Buscar hora de fin
     const patronesHoraFin = [
@@ -1027,12 +1070,42 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
     
     // Solo agregar la foja si cumple con los requisitos
     if (esValidaFinal) {
-      resultados.fojas.push(foja);
+      // Verificar si ya existe una foja con la misma fecha y mismo equipo (evitar duplicados)
+      const esDuplicada = resultados.fojas.some(fojaExistente => {
+        if (foja.fecha_cirugia && fojaExistente.fecha_cirugia) {
+          // Normalizar fechas para comparar
+          const partes1 = foja.fecha_cirugia.split('/');
+          const partes2 = fojaExistente.fecha_cirugia.split('/');
+          if (partes1.length === 3 && partes2.length === 3) {
+            const fecha1 = `${partes1[0].padStart(2, '0')}/${partes1[1].padStart(2, '0')}/${partes1[2]}`;
+            const fecha2 = `${partes2[0].padStart(2, '0')}/${partes2[1].padStart(2, '0')}/${partes2[2]}`;
+            if (fecha1 === fecha2) {
+              // Si tienen la misma fecha, verificar si tienen el mismo anestesista
+              const anestesista1 = foja.equipo_quirurgico.find(e => e.rol === 'anestesista')?.nombre;
+              const anestesista2 = fojaExistente.equipo_quirurgico.find(e => e.rol === 'anestesista')?.nombre;
+              if (anestesista1 && anestesista2 && anestesista1 === anestesista2) {
+                return true; // Es duplicada
+              }
+              // También verificar por cirujano si no hay anestesista
+              const cirujano1 = foja.equipo_quirurgico.find(e => e.rol === 'cirujano')?.nombre;
+              const cirujano2 = fojaExistente.equipo_quirurgico.find(e => e.rol === 'cirujano')?.nombre;
+              if (cirujano1 && cirujano2 && cirujano1 === cirujano2) {
+                return true; // Es duplicada
+              }
+            }
+          }
+        }
+        return false;
+      });
+      
+      if (!esDuplicada) {
+        resultados.fojas.push(foja);
+      }
     }
   }
 
   // Si no se encontró ninguna foja válida pero había ocurrencias, agregar error
-  if (resultados.fojas.length === 0 && ocurrencias.length > 0) {
+  if (resultados.fojas.length === 0 && ocurrenciasFiltradas.length > 0) {
     resultados.errores_generales.push(
       "⚠️ ADVERTENCIA: Se encontraron menciones de 'foja quirúrgica' pero ninguna tiene Anestesista o equipo quirúrgico completo dentro de los próximos 4000 caracteres"
     );
