@@ -51,13 +51,18 @@ interface Doctor {
   matricula?: string;
 }
 
-interface ResultadosFoja {
+interface FojaQuirurgica {
   bisturi_armonico: string | null;
   equipo_quirurgico: Array<{ rol: string; nombre: string }>;
   fecha_cirugia: string | null;
   hora_inicio: string | null;
   hora_fin: string | null;
   errores: string[];
+}
+
+interface ResultadosFoja {
+  fojas: FojaQuirurgica[];
+  errores_generales: string[];
 }
 
 /* ======== NUEVO: Estudios ======== */
@@ -625,9 +630,9 @@ function extraerDoctores(texto: string): {
   return doctores;
 }
 
-function validarEquipoQuirurgicoUnico(resultadosFoja: ResultadosFoja): string[] {
+function validarEquipoQuirurgicoUnico(foja: FojaQuirurgica): string[] {
   const errores: string[] = [];
-  const equipo = resultadosFoja.equipo_quirurgico;
+  const equipo = foja.equipo_quirurgico;
   if (!equipo || equipo.length === 0) return errores;
 
   const crit = ["cirujano", "primer_ayudante", "instrumentador", "anestesista"];
@@ -657,12 +662,8 @@ function validarEquipoQuirurgicoUnico(resultadosFoja: ResultadosFoja): string[] 
 
 function analizarFojaQuirurgica(texto: string): ResultadosFoja {
   const resultados: ResultadosFoja = {
-    bisturi_armonico: null,
-    equipo_quirurgico: [],
-    fecha_cirugia: null,
-    hora_inicio: null,
-    hora_fin: null,
-    errores: [],
+    fojas: [],
+    errores_generales: [],
   };
 
   const patronesFoja = [
@@ -673,13 +674,19 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
     /registro\s+quirúrgico/i,
     /parte\s+quirúrgico/i,
   ];
-  let header: RegExpMatchArray | null = null;
-  for (const p of patronesFoja) {
-    header = texto.match(p);
-    if (header) break;
+
+  // Buscar todas las ocurrencias de "foja quirúrgica"
+  const ocurrencias: Array<{ patron: RegExp; index: number }> = [];
+  for (const patron of patronesFoja) {
+    let match;
+    const regex = new RegExp(patron.source, patron.flags + 'g');
+    while ((match = regex.exec(texto)) !== null) {
+      ocurrencias.push({ patron, index: match.index });
+    }
   }
 
-  if (!header) {
+  // Si no se encontró ninguna ocurrencia, verificar con indicadores
+  if (ocurrencias.length === 0) {
     const indicadores = [
       /cirujano[:\s]*([A-Z][A-Z\s,]+)/i,
       /anestesista[:\s]*([A-Z][A-Z\s,]+)/i,
@@ -689,143 +696,194 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
     let count = 0;
     for (const r of estosIndicadores(indicadores, texto)) if (r) count++;
     if (count < 2) {
-      resultados.errores.push(
+      resultados.errores_generales.push(
         "❌ CRÍTICO: No se encontró foja quirúrgica en el documento"
       );
       return resultados;
     }
   }
 
-  const inicio = header ? (header.index ?? 0) : 0;
-  const trozo = texto.substring(inicio, inicio + 3000);
+  // Analizar cada ocurrencia para encontrar foja quirúrgicas válidas
+  for (const ocurrencia of ocurrencias) {
+    const inicio = ocurrencia.index;
+    // Analizar un bloque más grande (5000 caracteres) para capturar toda la foja
+    const trozo = texto.substring(inicio, Math.min(inicio + 5000, texto.length));
 
-  const patronesBisturi = [
-    /uso\s+de\s+bisturí\s+armónico\??[:\s]*(si|no)/i,
-    /bisturí\s+armónico\??[:\s]*(si|no)/i,
-    /armónico\??[:\s]*(si|no)/i,
-    /bisturí.*?(si|no)/i,
-    /armónico.*?(si|no)/i,
-  ];
-  for (const p of patronesBisturi) {
-    const m = trozo.match(p);
-    if (m) {
-      resultados.bisturi_armonico = m[1].toUpperCase();
-      break;
+    // Crear una foja individual para esta ocurrencia
+    const foja: FojaQuirurgica = {
+      bisturi_armonico: null,
+      equipo_quirurgico: [],
+      fecha_cirugia: null,
+      hora_inicio: null,
+      hora_fin: null,
+      errores: [],
+    };
+
+    // Buscar bisturí armónico
+    const patronesBisturi = [
+      /uso\s+de\s+bisturí\s+armónico\??[:\s]*(si|no)/i,
+      /bisturí\s+armónico\??[:\s]*(si|no)/i,
+      /armónico\??[:\s]*(si|no)/i,
+      /bisturí.*?(si|no)/i,
+      /armónico.*?(si|no)/i,
+    ];
+    for (const p of patronesBisturi) {
+      const m = trozo.match(p);
+      if (m) {
+        foja.bisturi_armonico = m[1].toUpperCase();
+        break;
+      }
     }
-  }
 
-  const patronesEquipo = [
-    { rol: 'cirujano', patrón: /cirujano[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
-    { rol: 'anestesista', patrón: /anestesista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
-    { rol: 'instrumentador', patrón: /instrumentador\/?a?[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
-    { rol: 'primer_ayudante', patrón: /primer\s+ayudante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
-    { rol: 'ayudante_residencia', patrón: /ayudante\s+residencia[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
-    { rol: 'ayudante', patrón: /ayudante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
-  ];
-  const vistos = new Set<string>();
+    // Buscar equipo quirúrgico
+    const patronesEquipo = [
+      { rol: 'cirujano', patrón: /cirujano[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+      { rol: 'anestesista', patrón: /anestesista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+      { rol: 'instrumentador', patrón: /instrumentador\/?a?[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+      { rol: 'primer_ayudante', patrón: /primer\s+ayudante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+      { rol: 'ayudante_residencia', patrón: /ayudante\s+residencia[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+      { rol: 'ayudante', patrón: /ayudante[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i },
+    ];
+    const vistos = new Set<string>();
 
-  for (const { rol, patrón: p } of patronesEquipo) {
-    const matches = trozo.matchAll(new RegExp(p.source, 'gi'));
-    for (const m of matches) {
-      if (!m[1]) continue;
+    for (const { rol, patrón: p } of patronesEquipo) {
+      const matches = trozo.matchAll(new RegExp(p.source, 'gi'));
+      for (const m of matches) {
+        if (!m[1]) continue;
 
-      const palabrasFinNombre = [
-        'cirujano', 'cirug', 'anestesista', 'instrumentador', 'ayudante', 
-        'responsable', 'primer', 'tipo de visita', 'tipo', 'fecha', 'hora',
-        'diagnostico', 'procedimiento', 'matricula', 'especialidad'
-      ];
+        const palabrasFinNombre = [
+          'cirujano', 'cirug', 'anestesista', 'instrumentador', 'ayudante', 
+          'responsable', 'primer', 'tipo de visita', 'tipo', 'fecha', 'hora',
+          'diagnostico', 'procedimiento', 'matricula', 'especialidad'
+        ];
 
-      let nombre = m[1].trim();
+        let nombre = m[1].trim();
 
-      for (const palabra of palabrasFinNombre) {
-        const index = nombre.toLowerCase().indexOf(palabra);
-        if (index > 5) {
-          nombre = nombre.substring(0, index).trim();
-          break;
-        }
-      }
-
-      nombre = nombre
-        .replace(/\s+(Anestesista|Instrumentador|Ayudante|Cirujano|Responsable|Fecha|Hora)\s*$/i, '')
-        .replace(/\s+(Tipo|de|para|en)\s+[A-ZÁÉÍÓÚÑ]+\s*$/i, '')
-        .trim();
-
-      if (nombre.toLowerCase().startsWith('residencia ') || nombre.toLowerCase().startsWith('residencia,')) {
-        nombre = nombre.replace(/^residencia[\s,]+/i, '').trim();
-      }
-
-      if (nombre.length > 3) {
-        const key = `${rol}:${nombre}`;
-
-        if (rol === 'ayudante') {
-          const yaExisteResidencia = resultados.equipo_quirurgico.some(
-            e => e.rol === 'ayudante_residencia' && 
-                 (e.nombre === nombre || e.nombre.toLowerCase().includes(nombre.toLowerCase()) || 
-                  nombre.toLowerCase().includes(e.nombre.toLowerCase()))
-          );
-          if (yaExisteResidencia) {
-            continue;
+        for (const palabra of palabrasFinNombre) {
+          const index = nombre.toLowerCase().indexOf(palabra);
+          if (index > 5) {
+            nombre = nombre.substring(0, index).trim();
+            break;
           }
         }
-        
-        if (!vistos.has(key)) {
-          vistos.add(key);
-          resultados.equipo_quirurgico.push({ rol, nombre });
+
+        nombre = nombre
+          .replace(/\s+(Anestesista|Instrumentador|Ayudante|Cirujano|Responsable|Fecha|Hora)\s*$/i, '')
+          .replace(/\s+(Tipo|de|para|en)\s+[A-ZÁÉÍÓÚÑ]+\s*$/i, '')
+          .trim();
+
+        if (nombre.toLowerCase().startsWith('residencia ') || nombre.toLowerCase().startsWith('residencia,')) {
+          nombre = nombre.replace(/^residencia[\s,]+/i, '').trim();
+        }
+
+        if (nombre.length > 3) {
+          const key = `${rol}:${nombre}`;
+
+          if (rol === 'ayudante') {
+            const yaExisteResidencia = foja.equipo_quirurgico.some(
+              e => e.rol === 'ayudante_residencia' && 
+                   (e.nombre === nombre || e.nombre.toLowerCase().includes(nombre.toLowerCase()) || 
+                    nombre.toLowerCase().includes(e.nombre.toLowerCase()))
+            );
+            if (yaExisteResidencia) {
+              continue;
+            }
+          }
+          
+          if (!vistos.has(key)) {
+            vistos.add(key);
+            foja.equipo_quirurgico.push({ rol, nombre });
+          }
         }
       }
     }
-  }
 
-  const patronesHoraInicio = [
-    /hora\s+comienzo[:\s]*(\d{1,2}:\d{2})/i,
-    /hora\s+inicio[:\s]*(\d{1,2}:\d{2})/i,
-    /comienzo[:\s]*(\d{1,2}:\d{2})/i,
-  ];
-  let gotInicio = false;
-  for (const p of patronesHoraInicio) {
-    const m = trozo.match(p);
-    if (m) {
-      resultados.hora_inicio = m[1];
-      gotInicio = true;
-      const antes = trozo.substring(0, m.index ?? 0);
-      const pf = [/fecha[:\s]*(\d{1,2}\/\d{1,2}\/\d{4})/i, /(\d{1,2}\/\d{1,2}\/\d{4})/];
-      let fOK = false;
-      for (const r of pf) {
-        const f = antes.match(r);
-        if (f) {
-          resultados.fecha_cirugia = f[1];
-          fOK = true;
-          break;
+    // Buscar hora de inicio y fecha
+    const patronesHoraInicio = [
+      /hora\s+comienzo[:\s]*(\d{1,2}:\d{2})/i,
+      /hora\s+inicio[:\s]*(\d{1,2}:\d{2})/i,
+      /comienzo[:\s]*(\d{1,2}:\d{2})/i,
+    ];
+    let gotInicio = false;
+    for (const p of patronesHoraInicio) {
+      const m = trozo.match(p);
+      if (m) {
+        foja.hora_inicio = m[1];
+        gotInicio = true;
+        const antes = trozo.substring(0, m.index ?? 0);
+        const pf = [/fecha[:\s]*(\d{1,2}\/\d{1,2}\/\d{4})/i, /(\d{1,2}\/\d{1,2}\/\d{4})/];
+        let fOK = false;
+        for (const r of pf) {
+          const f = antes.match(r);
+          if (f) {
+            foja.fecha_cirugia = f[1];
+            fOK = true;
+            break;
+          }
         }
+        // Si no encontró fecha antes de la hora, buscar después
+        if (!fOK) {
+          const despues = trozo.substring((m.index ?? 0) + m[0].length, Math.min((m.index ?? 0) + m[0].length + 200, trozo.length));
+          for (const r of pf) {
+            const f = despues.match(r);
+            if (f) {
+              foja.fecha_cirugia = f[1];
+              fOK = true;
+              break;
+            }
+          }
+        }
+        if (!fOK)
+          foja.errores.push(
+            "❌ CRÍTICO: Fecha de cirugía no encontrada en foja quirúrgica"
+          );
+        break;
       }
-      if (!fOK)
-        resultados.errores.push(
-          "❌ CRÍTICO: Fecha de cirugía no encontrada en foja quirúrgica"
-        );
-      break;
     }
-  }
-  if (!gotInicio)
-    resultados.errores.push(
-      "❌ CRÍTICO: Hora de comienzo no encontrada en foja quirúrgica"
-    );
+    if (!gotInicio)
+      foja.errores.push(
+        "❌ CRÍTICO: Hora de comienzo no encontrada en foja quirúrgica"
+      );
 
-  const patronesHoraFin = [
-    /hora\s+finalización[:\s]*(\d{1,2}:\d{2})/i,
-    /hora\s+fin[:\s]*(\d{1,2}:\d{2})/i,
-    /finalización[:\s]*(\d{1,2}:\d{2})/i,
-  ];
-  for (const p of patronesHoraFin) {
-    const m = trozo.match(p);
-    if (m) {
-      resultados.hora_fin = m[1];
-      break;
+    // Buscar hora de fin
+    const patronesHoraFin = [
+      /hora\s+finalización[:\s]*(\d{1,2}:\d{2})/i,
+      /hora\s+fin[:\s]*(\d{1,2}:\d{2})/i,
+      /finalización[:\s]*(\d{1,2}:\d{2})/i,
+    ];
+    for (const p of patronesHoraFin) {
+      const m = trozo.match(p);
+      if (m) {
+        foja.hora_fin = m[1];
+        break;
+      }
     }
+    if (!foja.hora_fin)
+      foja.errores.push(
+        "⚠️ ADVERTENCIA: Hora de finalización no encontrada en foja quirúrgica"
+      );
+
+    // Validar que esta foja tenga la estructura mínima requerida
+    // Debe tener al menos: Cirujano + Anestesista + Fecha + Hora inicio
+    const tieneCirujano = foja.equipo_quirurgico.some(e => e.rol === 'cirujano');
+    const tieneAnestesista = foja.equipo_quirurgico.some(e => e.rol === 'anestesista');
+    const tieneFecha = !!foja.fecha_cirugia;
+    const tieneHoraInicio = !!foja.hora_inicio;
+
+    // Solo agregar la foja si tiene la estructura mínima completa
+    if (tieneCirujano && tieneAnestesista && tieneFecha && tieneHoraInicio) {
+      resultados.fojas.push(foja);
+    }
+    // Si no tiene estructura completa pero tiene algunos elementos, podría ser una referencia
+    // No la agregamos pero tampoco generamos error general
   }
-  if (!resultados.hora_fin)
-    resultados.errores.push(
-      "⚠️ ADVERTENCIA: Hora de finalización no encontrada en foja quirúrgica"
+
+  // Si no se encontró ninguna foja válida pero había ocurrencias, agregar error
+  if (resultados.fojas.length === 0 && ocurrencias.length > 0) {
+    resultados.errores_generales.push(
+      "⚠️ ADVERTENCIA: Se encontraron menciones de 'foja quirúrgica' pero ninguna tiene la estructura completa (Cirujano, Anestesista, Fecha, Hora inicio)"
     );
+  }
 
   return resultados;
 }
@@ -1160,7 +1218,13 @@ function generarComunicacionesOptimizadas(
     });
   }
 
-  if (erroresFoja.length > 0 || resultadosFoja.errores.length > 0) {
+  // Recolectar todos los errores de todas las foja
+  const todosErroresFoja: string[] = [...erroresFoja, ...resultadosFoja.errores_generales];
+  for (const foja of resultadosFoja.fojas) {
+    todosErroresFoja.push(...foja.errores);
+  }
+
+  if (todosErroresFoja.length > 0) {
     const set = new Set<string>();
     const cir = doctores.cirujanos.filter((c) => {
       if (set.has(c.nombre)) return false;
@@ -1169,18 +1233,22 @@ function generarComunicacionesOptimizadas(
     });
     const nombres =
       cir.length > 0 ? cir.map((c) => `Dr/a ${c.nombre}`).join(", ") : "Cirujano Responsable";
-    const errs = [...erroresFoja, ...resultadosFoja.errores];
+    const mensaje = resultadosFoja.fojas.length > 1
+      ? `Se detectaron inconsistencias en ${resultadosFoja.fojas.length} foja quirúrgicas. Completar.`
+      : "Se detectaron inconsistencias en la foja quirúrgica. Completar.";
     comunicaciones.push({
       sector: "Cirugía",
       responsable: nombres,
       motivo: "Problemas en foja quirúrgica",
       urgencia: "ALTA",
-      errores: errs,
-      mensaje: "Se detectaron inconsistencias en la foja quirúrgica. Completar.",
+      errores: todosErroresFoja,
+      mensaje,
     });
   }
 
-  if (resultadosFoja.bisturi_armonico === "SI") {
+  // Verificar bisturí armónico en todas las foja
+  const tieneBisturiArmonico = resultadosFoja.fojas.some(f => f.bisturi_armonico === "SI");
+  if (tieneBisturiArmonico) {
     const set = new Set<string>();
     const cir = doctores.cirujanos.filter((c) => {
       if (set.has(c.nombre)) return false;
@@ -1332,9 +1400,13 @@ Deno.serve(async (req: Request) => {
     const doctores = extraerDoctores(pdfText);
     const resultadosFoja = analizarFojaQuirurgica(pdfText);
 
-    const erroresEquipoUnico = validarEquipoQuirurgicoUnico(resultadosFoja);
-    if (erroresEquipoUnico.length > 0)
-      resultadosFoja.errores.push(...erroresEquipoUnico);
+    // Validar equipo quirúrgico único para cada foja
+    for (const foja of resultadosFoja.fojas) {
+      const erroresEquipoUnico = validarEquipoQuirurgicoUnico(foja);
+      if (erroresEquipoUnico.length > 0) {
+        foja.errores.push(...erroresEquipoUnico);
+      }
+    }
 
     const {
       estudios,
@@ -1342,13 +1414,19 @@ Deno.serve(async (req: Request) => {
       conteo: estudiosConteo,
     } = extraerEstudios(pdfText);
 
+    // Recolectar todos los errores de foja para pasar a comunicaciones
+    const todosErroresFoja: string[] = [...resultadosFoja.errores_generales];
+    for (const foja of resultadosFoja.fojas) {
+      todosErroresFoja.push(...foja.errores);
+    }
+
     const comunicaciones = generarComunicacionesOptimizadas(
       erroresEvolucion,
       advertencias,
       erroresAltaMedica,
       erroresEpicrisis,
       datosPaciente.errores_admision,
-      resultadosFoja.errores,
+      todosErroresFoja,
       doctores,
       resultadosFoja,
       estudios,
@@ -1358,7 +1436,7 @@ Deno.serve(async (req: Request) => {
     const totalErrores =
       datosPaciente.errores_admision.length +
       erroresEvolucion.length +
-      resultadosFoja.errores.length +
+      todosErroresFoja.length +
       (pacienteInternado ? 0 : erroresAltaMedica.length) +
       (pacienteInternado ? 0 : erroresEpicrisis.length) +
       erroresEstudios.length;
@@ -1381,7 +1459,7 @@ Deno.serve(async (req: Request) => {
       advertencias,
       erroresAltaMedica,
       erroresEpicrisis,
-      erroresFoja: resultadosFoja.errores,
+      erroresFoja: todosErroresFoja,
       resultadosFoja,
       doctores,
       estudios,
@@ -1411,10 +1489,11 @@ Deno.serve(async (req: Request) => {
         total_errores: totalErrores,
         errores_admision: datosPaciente.errores_admision.length,
         errores_evoluciones: erroresEvolucion.length,
-        errores_foja_quirurgica: resultadosFoja.errores.length,
+        errores_foja_quirurgica: todosErroresFoja.length,
         errores_alta_medica: pacienteInternado ? 0 : erroresAltaMedica.length,
         errores_epicrisis: pacienteInternado ? 0 : erroresEpicrisis.length,
-        bisturi_armonico: resultadosFoja.bisturi_armonico || "No determinado",
+        bisturi_armonico: resultadosFoja.fojas.some(f => f.bisturi_armonico === "SI") ? "SI" : 
+                         resultadosFoja.fojas.some(f => f.bisturi_armonico === "NO") ? "NO" : "No determinado",
         estado: totalErrores > 0 ? "Pendiente de corrección" : "Aprobado",
         estudios_total: estudiosConteo.total,
         estudios_imagenes: estudiosConteo.imagenes,
@@ -1430,10 +1509,16 @@ Deno.serve(async (req: Request) => {
           })),
           ...erroresEvolucion.map((e) => ({ tipo: "Evolución", descripcion: e })),
           ...advertencias.map((a) => ({ tipo: a.tipo, descripcion: a.descripcion })),
-          ...resultadosFoja.errores.map((e) => ({
+          ...resultadosFoja.errores_generales.map((e) => ({
             tipo: "Foja Quirúrgica",
             descripcion: e,
           })),
+          ...resultadosFoja.fojas.flatMap((foja, idx) => 
+            foja.errores.map((e) => ({
+              tipo: `Foja Quirúrgica ${resultadosFoja.fojas.length > 1 ? `#${idx + 1}` : ''}`,
+              descripcion: e,
+            }))
+          ),
           ...(pacienteInternado ? [] : erroresAltaMedica.map((e) => ({ tipo: "Alta Médica", descripcion: e }))),
           ...(pacienteInternado ? [] : erroresEpicrisis.map((e) => ({ tipo: "Epicrisis", descripcion: e }))),
           ...erroresEstudios.map((e) => ({ tipo: "Estudios", descripcion: e })),
@@ -1456,44 +1541,49 @@ Deno.serve(async (req: Request) => {
     console.log("BUILD auditar-pdf 2025-10-30 19:35");
     console.log("DEBUG: Iniciando guardado de médicos...");
     console.log("DEBUG: resultadosFoja completo:", resultadosFoja);
-    console.log("DEBUG: resultadosFoja.equipo_quirurgico length:", resultadosFoja.equipo_quirurgico?.length);
+    console.log("DEBUG: Número de foja encontradas:", resultadosFoja.fojas.length);
 
     const medicosIds: Record<string, string> = {};
 
-    if (resultadosFoja.equipo_quirurgico && resultadosFoja.equipo_quirurgico.length > 0) {
-      console.log("DEBUG: Hay equipo quirúrgico, procesando...");
+    // Iterar sobre todas las foja quirúrgicas
+    for (let idxFoja = 0; idxFoja < resultadosFoja.fojas.length; idxFoja++) {
+      const foja = resultadosFoja.fojas[idxFoja];
+      console.log(`DEBUG: Procesando foja #${idxFoja + 1}, equipo quirúrgico length:`, foja.equipo_quirurgico?.length);
 
-      const medicosToInsert = resultadosFoja.equipo_quirurgico.map((m) => ({
-        auditoria_id: data?.[0]?.id,
-        nombre_completo: m.nombre,
-        rol: m.rol,
-        fecha_cirugia: resultadosFoja.fecha_cirugia || null,
-        nombre_archivo: nombreArchivo,
-        paciente_dni: datosPaciente.dni || "No encontrado",
-        paciente_nombre: datosPaciente.nombre || "No encontrado",
-      }));
+      if (foja.equipo_quirurgico && foja.equipo_quirurgico.length > 0) {
+        console.log("DEBUG: Hay equipo quirúrgico, procesando...");
 
-      console.log("DEBUG: medicosToInsert a guardar:", medicosToInsert);
+        const medicosToInsert = foja.equipo_quirurgico.map((m) => ({
+          auditoria_id: data?.[0]?.id,
+          nombre_completo: m.nombre,
+          rol: m.rol,
+          fecha_cirugia: foja.fecha_cirugia || null,
+          nombre_archivo: nombreArchivo,
+          paciente_dni: datosPaciente.dni || "No encontrado",
+          paciente_nombre: datosPaciente.nombre || "No encontrado",
+        }));
 
-      const { data: medicosData, error: errorMedicos } = await supabase
-        .from("medicos_foja_quirurgica")
-        .insert(medicosToInsert)
-        .select("id, nombre_completo, rol");
+        console.log("DEBUG: medicosToInsert a guardar:", medicosToInsert);
 
-      console.log("DEBUG: resultado insert medicos:", medicosData);
-      console.log("DEBUG: error insert medicos:", errorMedicos);
+        const { data: medicosData, error: errorMedicos } = await supabase
+          .from("medicos_foja_quirurgica")
+          .insert(medicosToInsert)
+          .select("id, nombre_completo, rol");
 
-      if (errorMedicos) {
-        console.error("Error guardando médicos en BD:", errorMedicos);
-      } else if (medicosData) {
-        for (const m of medicosData) {
-          const key = `${m.nombre_completo}|${m.rol}`;
-          medicosIds[key] = m.id;
+        console.log("DEBUG: resultado insert medicos:", medicosData);
+        console.log("DEBUG: error insert medicos:", errorMedicos);
+
+        if (errorMedicos) {
+          console.error("Error guardando médicos en BD:", errorMedicos);
+        } else if (medicosData) {
+          for (const m of medicosData) {
+            const key = `${m.nombre_completo}|${m.rol}`;
+            medicosIds[key] = m.id;
+          }
         }
+      } else {
+        console.log(`DEBUG: NO hay equipo quirúrgico en foja #${idxFoja + 1}`);
       }
-    } else {
-      console.log("DEBUG: NO hay equipo quirúrgico o está vacío");
-      console.log("DEBUG: resultadosFoja.equipo_quirurgico:", resultadosFoja.equipo_quirurgico);
     }
 
     const erroresMedicosToInsert: Array<{
@@ -1528,49 +1618,72 @@ Deno.serve(async (req: Request) => {
       }
     };
 
-    if (resultadosFoja.errores?.length) {
-      resultadosFoja.equipo_quirurgico
-        .filter((m) => m.rol === "cirujano")
-        .forEach((c) => {
-          resultadosFoja.errores.forEach((e) =>
-            agregarError(c.nombre, "cirujano", "Foja Quirúrgica", e, "CRÍTICO")
-          );
-        });
+    // Agregar errores de foja quirúrgica para cada foja
+    for (const foja of resultadosFoja.fojas) {
+      if (foja.errores?.length) {
+        foja.equipo_quirurgico
+          .filter((m) => m.rol === "cirujano")
+          .forEach((c) => {
+            foja.errores.forEach((e) =>
+              agregarError(c.nombre, "cirujano", "Foja Quirúrgica", e, "CRÍTICO")
+            );
+          });
+      }
+
+      if (foja.bisturi_armonico === "SI") {
+        foja.equipo_quirurgico
+          .filter((m) => m.rol === "cirujano")
+          .forEach((c) => {
+            agregarError(
+              c.nombre,
+              "cirujano",
+              "Bisturí Armónico",
+              "Se utilizó bisturí armónico - Requiere autorización especial",
+              "CRÍTICO"
+            );
+          });
+      }
+    }
+
+    // Errores generales de foja (no asociados a una foja específica)
+    if (resultadosFoja.errores_generales?.length) {
+      // Para errores generales, usar todos los cirujanos de todas las foja
+      const todosCirujanos = resultadosFoja.fojas.flatMap(f => 
+        f.equipo_quirurgico.filter(m => m.rol === "cirujano")
+      );
+      const cirujanosUnicos = Array.from(new Set(todosCirujanos.map(c => c.nombre)));
+      for (const nombreCirujano of cirujanosUnicos) {
+        resultadosFoja.errores_generales.forEach((e) =>
+          agregarError(nombreCirujano, "cirujano", "Foja Quirúrgica", e, "CRÍTICO")
+        );
+      }
     }
 
     if (!pacienteInternado && erroresEpicrisis?.length) {
-      resultadosFoja.equipo_quirurgico
-        .filter((m) => m.rol === "cirujano")
-        .forEach((c) => {
-          erroresEpicrisis.forEach((e) =>
-            agregarError(c.nombre, "cirujano", "Epicrisis", e, "MEDIA")
-          );
-        });
+      // Para epicrisis, usar todos los cirujanos de todas las foja
+      const todosCirujanos = resultadosFoja.fojas.flatMap(f => 
+        f.equipo_quirurgico.filter(m => m.rol === "cirujano")
+      );
+      const cirujanosUnicos = Array.from(new Set(todosCirujanos.map(c => c.nombre)));
+      for (const nombreCirujano of cirujanosUnicos) {
+        erroresEpicrisis.forEach((e) =>
+          agregarError(nombreCirujano, "cirujano", "Epicrisis", e, "MEDIA")
+        );
+      }
     }
 
     if (!pacienteInternado && erroresAltaMedica?.length) {
-      resultadosFoja.equipo_quirurgico
-        .filter((m) => m.rol === "cirujano")
-        .forEach((c) => {
-          erroresAltaMedica.forEach((e) => {
-            const sev = /crítico/i.test(e) ? "CRÍTICO" : "ALTA";
-            agregarError(c.nombre, "cirujano", "Alta Médica", e, sev);
-          });
+      // Para alta médica, usar todos los cirujanos de todas las foja
+      const todosCirujanos = resultadosFoja.fojas.flatMap(f => 
+        f.equipo_quirurgico.filter(m => m.rol === "cirujano")
+      );
+      const cirujanosUnicos = Array.from(new Set(todosCirujanos.map(c => c.nombre)));
+      for (const nombreCirujano of cirujanosUnicos) {
+        erroresAltaMedica.forEach((e) => {
+          const sev = /crítico/i.test(e) ? "CRÍTICO" : "ALTA";
+          agregarError(nombreCirujano, "cirujano", "Alta Médica", e, sev);
         });
-    }
-
-    if (resultadosFoja.bisturi_armonico === "SI") {
-      resultadosFoja.equipo_quirurgico
-        .filter((m) => m.rol === "cirujano")
-        .forEach((c) => {
-          agregarError(
-            c.nombre,
-            "cirujano",
-            "Bisturí Armónico",
-            "Se utilizó bisturí armónico - Requiere autorización especial",
-            "CRÍTICO"
-          );
-        });
+      }
     }
 
     if (erroresMedicosToInsert.length > 0) {
