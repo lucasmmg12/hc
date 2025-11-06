@@ -65,6 +65,13 @@ interface ResultadosFoja {
   errores_generales: string[];
 }
 
+interface DiaInternacion {
+  fecha: string; // DD/MM/YYYY
+  tieneEvolucion: boolean;
+  tieneFojaQuirurgica: boolean;
+  estudios: Array<{ tipo: string; categoria: string }>;
+}
+
 /* ======== NUEVO: Estudios ======== */
 type CategoriaEstudio = "Imagenes" | "Laboratorio" | "Procedimientos";
 
@@ -335,6 +342,7 @@ function extraerEvolucionesMejorado(
   errores: string[];
   evolucionesRepetidas: Evolucion[];
   advertencias: Advertencia[];
+  diasConEvolucion: Set<string>;
 } {
   const textoNormalizado = normalizarTextoPDF(texto);
   const errores: string[] = [];
@@ -599,7 +607,7 @@ function extraerEvolucionesMejorado(
   }
   // ========= FIN NUEVO =========
 
-  return { errores, evolucionesRepetidas, advertencias };
+  return { errores, evolucionesRepetidas, advertencias, diasConEvolucion };
 }
 
 /* =========================
@@ -771,7 +779,19 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
   // Analizar cada ocurrencia para encontrar foja quirúrgicas válidas
   for (const ocurrencia of ocurrencias) {
     const inicio = ocurrencia.index;
-    // Analizar un bloque más grande (5000 caracteres) para capturar toda la foja
+    // Analizar solo los próximos 1000 caracteres para validar si es una foja real
+    const trozoValidacion = texto.substring(inicio, Math.min(inicio + 1000, texto.length));
+    
+    // Validar que dentro de 1000 caracteres haya Cirujano + Anestesista
+    const tieneCirujanoCerca = /cirujano[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i.test(trozoValidacion);
+    const tieneAnestesistaCerca = /anestesista[:\s]*([A-ZÁÉÍÓÚÑ][A-ZÁÉÍÓÚÑ,\s]{2,40})/i.test(trozoValidacion);
+    
+    // Si no tiene ambos cerca, es solo una mención/referencia, ignorarla
+    if (!tieneCirujanoCerca || !tieneAnestesistaCerca) {
+      continue; // Ignorar esta ocurrencia
+    }
+    
+    // Si tiene ambos, analizar un bloque más grande (5000 caracteres) para capturar toda la foja
     const trozo = texto.substring(inicio, Math.min(inicio + 5000, texto.length));
 
     // Crear una foja individual para esta ocurrencia
@@ -928,29 +948,88 @@ function analizarFojaQuirurgica(texto: string): ResultadosFoja {
         "⚠️ ADVERTENCIA: Hora de finalización no encontrada en foja quirúrgica"
       );
 
-    // Validar que esta foja tenga la estructura mínima requerida
-    // Debe tener al menos: Cirujano + Anestesista + Fecha + Hora inicio
+    // Ya validamos que tiene Cirujano + Anestesista cerca (dentro de 1000 caracteres)
+    // Ahora solo necesitamos verificar que realmente los extrajimos correctamente
     const tieneCirujano = foja.equipo_quirurgico.some(e => e.rol === 'cirujano');
     const tieneAnestesista = foja.equipo_quirurgico.some(e => e.rol === 'anestesista');
-    const tieneFecha = !!foja.fecha_cirugia;
-    const tieneHoraInicio = !!foja.hora_inicio;
 
-    // Solo agregar la foja si tiene la estructura mínima completa
-    if (tieneCirujano && tieneAnestesista && tieneFecha && tieneHoraInicio) {
+    // Solo agregar la foja si tiene Cirujano + Anestesista (ya validado que están cerca)
+    if (tieneCirujano && tieneAnestesista) {
       resultados.fojas.push(foja);
     }
-    // Si no tiene estructura completa pero tiene algunos elementos, podría ser una referencia
-    // No la agregamos pero tampoco generamos error general
   }
 
   // Si no se encontró ninguna foja válida pero había ocurrencias, agregar error
   if (resultados.fojas.length === 0 && ocurrencias.length > 0) {
     resultados.errores_generales.push(
-      "⚠️ ADVERTENCIA: Se encontraron menciones de 'foja quirúrgica' pero ninguna tiene la estructura completa (Cirujano, Anestesista, Fecha, Hora inicio)"
+      "⚠️ ADVERTENCIA: Se encontraron menciones de 'foja quirúrgica' pero ninguna tiene Cirujano y Anestesista dentro de los próximos 1000 caracteres"
     );
   }
 
   return resultados;
+}
+
+/* =========================
+   Generar lista de días de internación
+   ========================= */
+function generarListaDiasInternacion(
+  ingreso: Date,
+  alta: Date,
+  diasConEvolucion: Set<string>,
+  resultadosFoja: ResultadosFoja,
+  estudios: Estudio[],
+  estaEnUCI: boolean
+): DiaInternacion[] {
+  const listaDias: DiaInternacion[] = [];
+  const inicio = startOfDay(ingreso);
+  const fin = startOfDay(alta);
+  const MS_DIA = 1000 * 60 * 60 * 24;
+  
+  // Crear un mapa de fechas de cirugía para acceso rápido
+  const fechasCirugia = new Set<string>();
+  for (const foja of resultadosFoja.fojas) {
+    if (foja.fecha_cirugia) {
+      // Normalizar formato de fecha (DD/MM/YYYY)
+      fechasCirugia.add(foja.fecha_cirugia);
+    }
+  }
+  
+  // Crear un mapa de estudios por fecha
+  const estudiosPorFecha = new Map<string, Array<{ tipo: string; categoria: string }>>();
+  for (const estudio of estudios) {
+    if (estudio.fecha) {
+      if (!estudiosPorFecha.has(estudio.fecha)) {
+        estudiosPorFecha.set(estudio.fecha, []);
+      }
+      estudiosPorFecha.get(estudio.fecha)!.push({
+        tipo: estudio.tipo,
+        categoria: estudio.categoria,
+      });
+    }
+  }
+  
+  let fechaActual = new Date(inicio);
+  while (fechaActual <= fin) {
+    const dia = String(fechaActual.getDate()).padStart(2, "0");
+    const mes = String(fechaActual.getMonth() + 1).padStart(2, "0");
+    const anio = fechaActual.getFullYear();
+    const fechaStr = `${dia}/${mes}/${anio}`;
+    
+    const tieneEvolucion = diasConEvolucion.has(fechaStr);
+    const tieneFojaQuirurgica = fechasCirugia.has(fechaStr);
+    const estudiosDelDia = estudiosPorFecha.get(fechaStr) || [];
+    
+    listaDias.push({
+      fecha: fechaStr,
+      tieneEvolucion,
+      tieneFojaQuirurgica,
+      estudios: estudiosDelDia,
+    });
+    
+    fechaActual = new Date(fechaActual.getTime() + MS_DIA);
+  }
+  
+  return listaDias;
 }
 
 function* estosIndicadores(regs: RegExp[], txt: string) {
@@ -1445,6 +1524,7 @@ Deno.serve(async (req: Request) => {
       errores: erroresEvolucion,
       evolucionesRepetidas,
       advertencias,
+      diasConEvolucion,
     } = extraerEvolucionesMejorado(
       pdfText,
       ingreso,
@@ -1511,6 +1591,16 @@ Deno.serve(async (req: Request) => {
       altaValida ? fechaAlta : null
     );
 
+    // Generar lista de días de internación
+    const listaDiasInternacion = generarListaDiasInternacion(
+      ingreso,
+      fechaAlta,
+      diasConEvolucion,
+      resultadosFoja,
+      estudios,
+      datosPaciente.estaEnUCI
+    );
+
     const resultado = {
       nombreArchivo,
       datosPaciente,
@@ -1557,6 +1647,7 @@ Deno.serve(async (req: Request) => {
       comunicaciones,
       totalErrores,
       estado: totalErrores > 0 ? "Pendiente de corrección" : "Aprobado",
+      listaDiasInternacion, // Nueva lista de días con su estado
     };
 
     // Persistencia
