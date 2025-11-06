@@ -21,6 +21,7 @@ interface DatosPaciente {
   direccion?: string;
   obra_social?: string;
   habitacion?: string;
+  estaEnUCI: boolean;
   errores_admision: string[];
 }
 
@@ -188,7 +189,7 @@ function diasHospitalizacionCalc(ingreso: Date, alta: Date | null): number {
    Extracción de datos del paciente
    ========================= */
 function extraerDatosPaciente(texto: string): DatosPaciente {
-  const datos: DatosPaciente = { errores_admision: [] };
+  const datos: DatosPaciente = { errores_admision: [], estaEnUCI: false };
   const tx = normalizarTextoPDF(texto);
   const lineas = tx.split("\n");
   const textoInicial = lineas.slice(0, 120).join("\n");
@@ -269,13 +270,63 @@ function extraerDatosPaciente(texto: string): DatosPaciente {
     datos.habitacion = "No encontrada";
   }
 
+  // Detectar si el paciente está en UCI
+  // Buscar en habitación y en todo el texto
+  const patronesUCI = [
+    /\bUCI\b/i,
+    /\bUTI\b/i,
+    /\bunidad\s+de\s+cuidados\s+intensivos\b/i,
+    /\bcuidados\s+intensivos\b/i,
+    /\bterapia\s+intensiva\b/i,
+  ];
+
+  // Verificar en la habitación
+  if (datos.habitacion) {
+    for (const patron of patronesUCI) {
+      if (patron.test(datos.habitacion)) {
+        datos.estaEnUCI = true;
+        break;
+      }
+    }
+  }
+
+  // Si no se detectó en habitación, buscar en el texto completo
+  if (!datos.estaEnUCI) {
+    const textoCompleto = tx.toLowerCase();
+    for (const patron of patronesUCI) {
+      let match;
+      const regex = new RegExp(patron.source, patron.flags + 'g');
+      while ((match = regex.exec(textoCompleto)) !== null) {
+        // Verificar que no sea solo una mención pasajera
+        // Buscar contexto alrededor (habitación, sector, servicio)
+        const inicio = Math.max(0, match.index - 100);
+        const fin = Math.min(textoCompleto.length, match.index + match[0].length + 200);
+        const contexto = textoCompleto.substring(inicio, fin);
+        if (
+          /habitaci[oó]n|sector|servicio|internado|ubicaci[oó]n|ubicado|paciente|ingreso/i.test(
+            contexto
+          )
+        ) {
+          datos.estaEnUCI = true;
+          break;
+        }
+      }
+      if (datos.estaEnUCI) break;
+    }
+  }
+
   return datos;
 }
 
 /* =========================
    Evoluciones
    ========================= */
-function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
+function extraerEvolucionesMejorado(
+  texto: string,
+  ingreso: Date,
+  alta: Date,
+  estaEnUCI: boolean = false
+): {
   errores: string[];
   evolucionesRepetidas: Evolucion[];
   advertencias: Advertencia[];
@@ -288,6 +339,8 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
 
   const patronVisita =
     /visita[\s_]+(\d{1,2}\/\d{1,2}\/\d{4})(?:\s+\d{1,2}:\d{2})?/gi;
+  
+  // Patrones base para evoluciones diarias
   const patronesEvolDiaria = [
     /evolución[\s_\n]+médica[\s_\n]+diaria/i,
     /evolución[\s_\n]+medica[\s_\n]+diaria/i,
@@ -298,6 +351,22 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
     /evolución[\s_\n]+diaria/i,
     /evolucion[\s_\n]+diaria/i,
   ];
+
+  // Si está en UCI, agregar patrones específicos para UCI
+  if (estaEnUCI) {
+    patronesEvolDiaria.push(
+      /UCI[\s\-_]*Hoja[\s\-_]*de[\s\-_]*Evolucion/i,
+      /UCI[\s\-_]*Hoja[\s\-_]*de[\s\-_]*Evoluci[oó]n/i,
+      /UTI[\s\-_]*Hoja[\s\-_]*de[\s\-_]*Evolucion/i,
+      /UTI[\s\-_]*Hoja[\s\-_]*de[\s\-_]*Evoluci[oó]n/i,
+      /UCI[\s\-_]*[\-]*[\s\-_]*Hoja[\s\-_]*Evolucion/i,
+      /UCI[\s\-_]*[\-]*[\s\-_]*Hoja[\s\-_]*Evoluci[oó]n/i,
+      /hoja[\s\-_]*de[\s\-_]*evolucion[\s\-_]*UCI/i,
+      /hoja[\s\-_]*de[\s\-_]*evoluci[oó]n[\s\-_]*UCI/i,
+      /hoja[\s\-_]*de[\s\-_]*evolucion[\s\-_]*UTI/i,
+      /hoja[\s\-_]*de[\s\-_]*evoluci[oó]n[\s\-_]*UTI/i
+    );
+  }
 
   const visitasEncontradas: Array<{ fecha: string; posicion: number }> = [];
   let match;
@@ -348,7 +417,10 @@ function extraerEvolucionesMejorado(texto: string, ingreso: Date, alta: Date): {
             fecha: fechaStr,
           });
         } else {
-          errores.push(`❌ CRÍTICO: ${fechaStr} - Falta 'Evolución médica diaria'`);
+          const nombreEvolucion = estaEnUCI
+            ? "'UCI - Hoja de Evolucion' o 'Evolución médica diaria'"
+            : "'Evolución médica diaria'";
+          errores.push(`❌ CRÍTICO: ${fechaStr} - Falta ${nombreEvolucion}`);
         }
       }
     } catch {}
@@ -1137,7 +1209,12 @@ Deno.serve(async (req: Request) => {
       errores: erroresEvolucion,
       evolucionesRepetidas,
       advertencias,
-    } = extraerEvolucionesMejorado(pdfText, ingreso, fechaAlta);
+    } = extraerEvolucionesMejorado(
+      pdfText,
+      ingreso,
+      fechaAlta,
+      datosPaciente.estaEnUCI
+    );
 
     let erroresAltaMedica: string[] = [];
     let erroresEpicrisis: string[] = [];
