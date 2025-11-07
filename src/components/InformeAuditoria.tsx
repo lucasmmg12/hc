@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
@@ -16,6 +16,7 @@ import {
   ActivitySquare,
 } from 'lucide-react';
 import { enviarMensajeWhatsApp, verificarMensajeEnviado } from '../services/whatsappService';
+import { ConfirmacionEnvioModal } from './ConfirmacionEnvioModal';
 import { generateAuditPDF } from '../utils/pdfGenerator';
 import { uploadPDFToStorage, updateAuditoriaPDFUrl } from '../services/pdfStorageService';
 
@@ -113,6 +114,9 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [, setVerificandoEnviados] = useState(false);
   const [generandoPDF, setGenerandoPDF] = useState(false);
+  const [modalConfirmacionAbierto, setModalConfirmacionAbierto] = useState(false);
+  const [comunicacionSeleccionada, setComunicacionSeleccionada] = useState<number | null>(null);
+  const [numerosDestino, setNumerosDestino] = useState<Record<number, string>>({});
 
   /* =========================
      Helpers
@@ -162,10 +166,41 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
     </span>
   );
 
-  const showNotification = (message: string, type: 'success' | 'error') => {
+  const showNotification = useCallback((message: string, type: 'success' | 'error') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
-  };
+  }, []);
+
+  const abrirModalEnvio = useCallback((index: number) => {
+    setComunicacionSeleccionada(index);
+    setModalConfirmacionAbierto(true);
+  }, []);
+
+  const cerrarModalEnvio = useCallback(() => {
+    setModalConfirmacionAbierto(false);
+    setComunicacionSeleccionada(null);
+  }, []);
+
+  const numeroDestinoSeleccionado = useMemo(
+    () => (comunicacionSeleccionada !== null ? numerosDestino[comunicacionSeleccionada] || '' : ''),
+    [comunicacionSeleccionada, numerosDestino]
+  );
+
+  const comunicacionSeleccionadaData = useMemo(
+    () => (comunicacionSeleccionada !== null ? resultado.comunicaciones[comunicacionSeleccionada] : null),
+    [comunicacionSeleccionada, resultado.comunicaciones]
+  );
+
+  const handleNumeroDestinoChange = useCallback(
+    (numero: string) => {
+      if (comunicacionSeleccionada === null) return;
+      setNumerosDestino((prev) => ({
+        ...prev,
+        [comunicacionSeleccionada]: numero,
+      }));
+    },
+    [comunicacionSeleccionada]
+  );
 
   /* =========================
      Efectos
@@ -216,35 +251,60 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
   /* =========================
      Acciones
      ========================= */
-  const handleEnviarDirecto = async (index: number) => {
-    if (enviando) return;
-    setEnviando(true);
+  const handleEnviarDirecto = useCallback(
+    async (index: number, numeroDestino: string) => {
+      if (enviando) return;
 
-    try {
-      const comunicacion = resultado.comunicaciones[index];
-
-      const response = await enviarMensajeWhatsApp({
-        comunicacion,
-        datosPaciente: resultado.datosPaciente,
-        nombreArchivo: resultado.nombreArchivo,
-        auditoriaId,
-        comunicacionIndex: index,
-      });
-
-      if (response.success) {
-        setMensajesEnviados((prev) => new Set([...prev, index]));
-        showNotification('✅ Mensaje enviado correctamente', 'success');
-      } else {
-        if (response.yaEnviado) showNotification('Este mensaje ya fue enviado anteriormente', 'error');
-        else showNotification('❌ Error al enviar el mensaje', 'error');
+      const numeroLimpio = numeroDestino.replace(/\D/g, '');
+      if (!numeroLimpio) {
+        showNotification('Debes ingresar un número de WhatsApp válido.', 'error');
+        return;
       }
-    } catch (error) {
-      showNotification('❌ Error al enviar el mensaje', 'error');
-      console.error('Error:', error);
-    } finally {
-      setEnviando(false);
-    }
-  };
+
+      setEnviando(true);
+
+      try {
+        const comunicacion = resultado.comunicaciones[index];
+
+        const response = await enviarMensajeWhatsApp({
+          comunicacion,
+          datosPaciente: resultado.datosPaciente,
+          nombreArchivo: resultado.nombreArchivo,
+          auditoriaId,
+          comunicacionIndex: index,
+          numeroDestino: numeroLimpio,
+        });
+
+        if (response.success) {
+          setMensajesEnviados((prev) => new Set([...prev, index]));
+          showNotification('✅ Mensaje enviado correctamente', 'success');
+        } else {
+          if (response.yaEnviado) showNotification('Este mensaje ya fue enviado anteriormente', 'error');
+          else showNotification('❌ Error al enviar el mensaje', 'error');
+        }
+      } catch (error) {
+        showNotification('❌ Error al enviar el mensaje', 'error');
+        console.error('Error:', error);
+      } finally {
+        setEnviando(false);
+        setComunicacionSeleccionada(null);
+      }
+    },
+    [auditoriaId, enviando, resultado, showNotification]
+  );
+
+  const handleConfirmarEnvio = useCallback(
+    (numero: string) => {
+      if (comunicacionSeleccionada === null) return;
+      setNumerosDestino((prev) => ({
+        ...prev,
+        [comunicacionSeleccionada]: numero,
+      }));
+      setModalConfirmacionAbierto(false);
+      void handleEnviarDirecto(comunicacionSeleccionada, numero);
+    },
+    [comunicacionSeleccionada, handleEnviarDirecto]
+  );
 
   const handleDescargarPDF = async () => {
     setGenerandoPDF(true);
@@ -273,7 +333,8 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
      Render
      ========================= */
   return (
-    <div className="space-y-8">
+    <>
+      <div className="space-y-8">
       {/* Botón superior para PDF */}
       <div className="flex justify-center mb-6">
         <button
@@ -770,7 +831,7 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
                     </div>
                   ) : (
                     <button
-                      onClick={() => handleEnviarDirecto(idx)}
+                      onClick={() => abrirModalEnvio(idx)}
                       disabled={enviando}
                       className="flex-1 px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-lg hover:from-green-700 hover:to-green-800 transition-all transform hover:scale-105 shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
@@ -929,5 +990,19 @@ export function InformeAuditoria({ resultado, auditoriaId }: Props) {
         </div>
       )}
     </div>
+      {comunicacionSeleccionadaData && (
+        <ConfirmacionEnvioModal
+          isOpen={modalConfirmacionAbierto}
+          onClose={cerrarModalEnvio}
+          onConfirm={handleConfirmarEnvio}
+          comunicacion={comunicacionSeleccionadaData}
+          datosPaciente={resultado.datosPaciente}
+          nombreArchivo={resultado.nombreArchivo}
+          isLoading={enviando}
+          numeroDestino={numeroDestinoSeleccionado}
+          onNumeroDestinoChange={handleNumeroDestinoChange}
+        />
+      )}
+    </>
   );
 }
