@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from 'react';
 import { X, Send, Loader2 } from 'lucide-react';
 
 interface DatosPaciente {
@@ -19,11 +20,13 @@ interface Comunicacion {
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: (numeroDestino: string) => void;
   comunicacion: Comunicacion;
   datosPaciente: DatosPaciente;
   nombreArchivo: string;
   isLoading: boolean;
+  numeroDestino?: string;
+  onNumeroDestinoChange?: (numero: string) => void;
 }
 
 export function ConfirmacionEnvioModal({
@@ -33,9 +36,41 @@ export function ConfirmacionEnvioModal({
   comunicacion,
   datosPaciente,
   nombreArchivo,
-  isLoading
+  isLoading,
+  numeroDestino,
+  onNumeroDestinoChange
 }: Props) {
   if (!isOpen) return null;
+
+  const [numeroActual, setNumeroActual] = useState(() => numeroDestino || '');
+
+  useEffect(() => {
+    if (typeof numeroDestino === 'string' && numeroDestino !== numeroActual) {
+      setNumeroActual(numeroDestino);
+    }
+  }, [numeroDestino, numeroActual]);
+
+  const manejarCambioNumero = (valor: string) => {
+    const soloDigitos = valor.replace(/\D/g, '');
+    setNumeroActual(soloDigitos);
+    onNumeroDestinoChange?.(soloDigitos);
+  };
+
+  const numeroValido = useMemo(() => {
+    if (!numeroActual) return false;
+    const formatoCorrecto = /^549\d{8,11}$/;
+    return formatoCorrecto.test(numeroActual);
+  }, [numeroActual]);
+
+  const advertenciaNumero = useMemo(() => {
+    if (!numeroActual) {
+      return 'Ingresa el número en formato 5492645438114 (sin +, guiones ni espacios).';
+    }
+    if (!numeroValido) {
+      return 'El número debe comenzar con 549 y contener solo dígitos, por ejemplo 5492645438114.';
+    }
+    return 'Formato válido. Se enviará al número ingresado.';
+  }, [numeroActual, numeroValido]);
 
   const construirPreview = () => {
     const urgenciaEmoji = comunicacion.urgencia === 'CRÍTICA' ? '🚨' :
@@ -89,14 +124,32 @@ export function ConfirmacionEnvioModal({
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+            <h3 className="font-semibold text-blue-900 flex items-center gap-2">
               <Send className="w-5 h-5" />
               Destinatario
             </h3>
-            <p className="text-gray-700">
-              <strong>Número:</strong> +54 9 264 543-8114
-            </p>
+            <div className="space-y-2">
+              <label className="flex flex-col gap-1 text-sm text-gray-700">
+                <span className="font-semibold text-base text-gray-900">Número de WhatsApp</span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={numeroActual}
+                  onChange={(event) => manejarCambioNumero(event.target.value)}
+                  placeholder="Ej: 5492645438114"
+                  className="px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={isLoading}
+                />
+              </label>
+              <p
+                className={`text-xs ${
+                  numeroValido ? 'text-green-700' : 'text-orange-600'
+                }`}
+              >
+                {advertenciaNumero}
+              </p>
+            </div>
             <p className="text-gray-700">
               <strong>Responsable:</strong> {comunicacion.responsable}
             </p>
@@ -137,8 +190,8 @@ export function ConfirmacionEnvioModal({
             Cancelar
           </button>
           <button
-            onClick={onConfirm}
-            disabled={isLoading}
+            onClick={() => onConfirm(numeroActual)}
+            disabled={isLoading || !numeroValido}
             className="flex-1 px-6 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {isLoading ? (
