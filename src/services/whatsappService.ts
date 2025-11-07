@@ -22,6 +22,7 @@ interface EnviarWhatsAppParams {
   nombreArchivo: string;
   auditoriaId?: string;
   comunicacionIndex: number;
+  numeroDestino: string;
 }
 
 interface EnviarWhatsAppResponse {
@@ -66,6 +67,7 @@ export async function enviarMensajeWhatsApp(
   params: EnviarWhatsAppParams
 ): Promise<EnviarWhatsAppResponse> {
   try {
+    const numeroDestinoLimpio = params.numeroDestino.replace(/\D/g, '');
     const timestamp = new Date().toISOString();
     console.log(`\n${'='.repeat(80)}`);
     console.log(`[${timestamp}] FRONTEND: INICIANDO ENVIO WHATSAPP`);
@@ -86,6 +88,7 @@ export async function enviarMensajeWhatsApp(
     console.log('[FRONTEND-DATOS] Auditoria ID:', params.auditoriaId);
     console.log('[FRONTEND-DATOS] Comunicacion Index:', params.comunicacionIndex);
     console.log('[FRONTEND-DATOS] Nombre Archivo:', params.nombreArchivo);
+    console.log('[FRONTEND-DATOS] Número destino:', numeroDestinoLimpio);
     console.log('[FRONTEND-DATOS] Comunicacion:', JSON.stringify(params.comunicacion, null, 2));
     console.log('[FRONTEND-DATOS] Datos Paciente:', JSON.stringify(params.datosPaciente, null, 2));
 
@@ -94,7 +97,8 @@ export async function enviarMensajeWhatsApp(
       datosPaciente: params.datosPaciente,
       nombreArchivo: params.nombreArchivo,
       auditoriaId: params.auditoriaId,
-      comunicacionIndex: params.comunicacionIndex
+      comunicacionIndex: params.comunicacionIndex,
+      numeroDestino: numeroDestinoLimpio
     };
 
     console.log('\n[FRONTEND-PAYLOAD] Payload completo a enviar:');
