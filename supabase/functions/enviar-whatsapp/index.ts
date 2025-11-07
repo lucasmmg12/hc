@@ -29,6 +29,7 @@ interface EnviarWhatsAppRequest {
   nombreArchivo: string;
   auditoriaId?: string;
   comunicacionIndex: number;
+  numeroDestino: string;
 }
 
 function construirMensajeWhatsApp(
@@ -88,13 +89,24 @@ Deno.serve(async (req: Request) => {
     console.log('[VALIDACION] Comunicacion completa:', JSON.stringify(requestData.comunicacion, null, 2));
     console.log('[VALIDACION] Datos paciente completos:', JSON.stringify(requestData.datosPaciente, null, 2));
     
-    const { comunicacion, datosPaciente, nombreArchivo, auditoriaId, comunicacionIndex } = requestData;
+    const {
+      comunicacion,
+      datosPaciente,
+      nombreArchivo,
+      auditoriaId,
+      comunicacionIndex,
+      numeroDestino
+    } = requestData;
 
-    if (!comunicacion || !datosPaciente || !nombreArchivo) {
+    const numeroDestinoLimpio = numeroDestino?.replace(/\D/g, '') ?? '';
+    const formatoNumero = /^549\d{8,11}$/;
+
+    if (!comunicacion || !datosPaciente || !nombreArchivo || !numeroDestinoLimpio) {
       console.error('Faltan datos requeridos:', {
         tieneComunicacion: !!comunicacion,
         tieneDatosPaciente: !!datosPaciente,
-        tieneNombreArchivo: !!nombreArchivo
+        tieneNombreArchivo: !!nombreArchivo,
+        tieneNumeroDestino: !!numeroDestinoLimpio
       });
       return new Response(
         JSON.stringify({ error: 'Faltan datos requeridos' }),
@@ -104,6 +116,21 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
+
+    if (!formatoNumero.test(numeroDestinoLimpio)) {
+      console.error('Número destino con formato inválido:', numeroDestino);
+      return new Response(
+        JSON.stringify({
+          error: 'Formato de número inválido. Usa 549 + código de área + número sin signos.'
+        }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    console.log('[VALIDACION] Número destino (limpio):', numeroDestinoLimpio);
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -162,7 +189,6 @@ Deno.serve(async (req: Request) => {
 
     const BUILDERBOT_API_URL = 'https://app.builderbot.cloud/api/v2/c3fd918b-b736-40dc-a841-cbb73d3b2a8d/messages';
     const BUILDERBOT_API_KEY = 'bb-3c45fa69-2776-4275-82b6-2d6df9e08ec6';
-    const WHATSAPP_NUMBER = '5492645438114';
     const MEDIA_URL = 'https://i.imgur.com/X2903s6.png';
 
     const builderbotPayload = {
@@ -170,13 +196,13 @@ Deno.serve(async (req: Request) => {
         content: mensajeWhatsApp,
         mediaUrl: MEDIA_URL
       },
-      number: WHATSAPP_NUMBER,
+      number: numeroDestinoLimpio,
       checkIfExists: false
     };
 
     console.log('\n[ENVIO] Preparando envío a Builderbot...');
     console.log('[ENVIO] URL:', BUILDERBOT_API_URL);
-    console.log('[ENVIO] Número destino:', WHATSAPP_NUMBER);
+    console.log('[ENVIO] Número destino:', numeroDestinoLimpio);
     console.log('[ENVIO] Media URL:', MEDIA_URL);
     console.log('[ENVIO] API Key (primeros 10 chars):', BUILDERBOT_API_KEY.substring(0, 10));
     console.log('[ENVIO] Payload completo:', JSON.stringify(builderbotPayload, null, 2));
@@ -223,7 +249,7 @@ Deno.serve(async (req: Request) => {
         await supabase.from('mensajes_enviados').insert({
           auditoria_id: auditoriaId,
           comunicacion_index: comunicacionIndex,
-          numero_destino: WHATSAPP_NUMBER,
+          numero_destino: numeroDestinoLimpio,
           responsable: comunicacion.responsable,
           sector: comunicacion.sector,
           mensaje_contenido: mensajeWhatsApp,
@@ -255,7 +281,7 @@ Deno.serve(async (req: Request) => {
       const { error: dbError } = await supabase.from('mensajes_enviados').insert({
         auditoria_id: auditoriaId,
         comunicacion_index: comunicacionIndex,
-        numero_destino: WHATSAPP_NUMBER,
+        numero_destino: numeroDestinoLimpio,
         responsable: comunicacion.responsable,
         sector: comunicacion.sector,
         mensaje_contenido: mensajeWhatsApp,
